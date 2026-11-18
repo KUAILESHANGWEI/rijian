@@ -1,8 +1,8 @@
-import {initializeClearPassword} from './clear-password.js?v=12';
-import {initializeTimer} from './timer.js?v=12';
-import {initializeMusic,playReminderMusic} from './music.js?v=12';
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=12'
-import { Lunar, Solar } from './vendor/lunar.js?v=12';
+import {initializeClearPassword} from './clear-password.js?v=13';
+import {initializeTimer} from './timer.js?v=13';
+import {initializeMusic,playReminderMusic} from './music.js?v=13';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=13'
+import { Lunar, Solar } from './vendor/lunar.js?v=13';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];
@@ -142,6 +142,23 @@ $('#new-group-form').onsubmit = event => {
     renderGroups();
     toast('分组已新增');
   } catch (error) { $('#group-error').textContent = error.message; }
+};
+$('#add-event-group').onclick = () => {
+  $('#add-event-group-form').reset();
+  $('#add-group-error').textContent = '';
+  $('#add-group-dialog').showModal();
+};
+$('#add-event-group-form').onsubmit = event => {
+  event.preventDefault();
+  try {
+    const name = validGroupName(event.target.elements.name.value);
+    if (name === '未分组' || groupNames().includes(name)) throw new Error('这个分组名称已存在或为保留名称');
+    if (!persist({...state,labels:[...groupNames(),name]})) return;
+    render();
+    $('#event-form').elements.label.value = name;
+    $('#add-group-dialog').close();
+    toast('分组已添加并选中');
+  } catch (error) { $('#add-group-error').textContent = error.message; }
 };
 $('#categories').onclick=e=>{const b=e.target.closest('[data-category]');if(b){category=b.dataset.category;render();}};
 $('#events').onclick=e=>{const b=e.target.closest('[data-id]');if(b)openEditor(b.dataset.id);};
