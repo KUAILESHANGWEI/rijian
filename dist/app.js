@@ -1,5 +1,6 @@
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=5'
-import { Lunar, Solar } from './vendor/lunar.js?v=5';
+import {initializeMusic,playReminderMusic} from './music.js?v=6';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=6'
+import { Lunar, Solar } from './vendor/lunar.js?v=6';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];
@@ -256,6 +257,7 @@ function checkReminders(){
     const due=date.getTime()-event.reminderMinutes*60000;const key=`${event.id}-${date.getTime()}-${event.reminderMinutes}`;
     if(due>now||now-due>86400000||notified.includes(key))continue;
     toast(`日子提醒 · ${event.title}`);
+    playReminderMusic(event.title);
     if('Notification' in window&&Notification.permission==='granted'){try{new Notification('日缄 · 日子提醒',{body:event.title,tag:key});}catch{/* In-page reminder remains available. */}}
     notified.push(key);changed=true;
   }
@@ -266,4 +268,5 @@ window.addEventListener('storage',e=>{if(e.key===KEY&&e.newValue){try{const data
 let currentDay=new Date().toDateString();
 setInterval(()=>{if(new Date().toDateString()!==currentDay){currentDay=new Date().toDateString();render();}checkReminders();},30000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();checkReminders();}});
+initializeMusic(toast);
 render();checkReminders();if(loadFailed)toast('本地数据读取失败，原存储尚在，请先检查备份。');
