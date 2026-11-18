@@ -1,6 +1,7 @@
-import {initializeMusic,playReminderMusic} from './music.js?v=6';
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=6'
-import { Lunar, Solar } from './vendor/lunar.js?v=6';
+import {initializeTimer} from './timer.js?v=7';
+import {initializeMusic,playReminderMusic} from './music.js?v=7';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=7'
+import { Lunar, Solar } from './vendor/lunar.js?v=7';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];
@@ -269,4 +270,11 @@ let currentDay=new Date().toDateString();
 setInterval(()=>{if(new Date().toDateString()!==currentDay){currentDay=new Date().toDateString();render();}checkReminders();},30000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();checkReminders();}});
 initializeMusic(toast);
+initializeTimer(message => {
+  toast(message);
+  playReminderMusic('倒计时结束');
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification('日缄 · 倒计时结束',{body:'时间到！'}); } catch { /* The in-page reminder is always shown. */ }
+  }
+}, toast);
 render();checkReminders();if(loadFailed)toast('本地数据读取失败，原存储尚在，请先检查备份。');
