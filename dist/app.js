@@ -1,7 +1,7 @@
-import {initializeTimer} from './timer.js?v=8';
-import {initializeMusic,playReminderMusic} from './music.js?v=8';
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=8'
-import { Lunar, Solar } from './vendor/lunar.js?v=8';
+import {initializeTimer} from './timer.js?v=9';
+import {initializeMusic,playReminderMusic} from './music.js?v=9';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=9'
+import { Lunar, Solar } from './vendor/lunar.js?v=9';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];
@@ -30,7 +30,7 @@ let toastTimer;
 function toast(text) { $('#toast').textContent=text;$('#toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').style.display='none',5000); }
 function persist(next) {
   try { localStorage.setItem(KEY,JSON.stringify(next));state=next;return true; }
-  catch {toast('保存失败，浏览器存储空间或权限不足。请先导出备份。');return false;}
+  catch {toast('保存失败，存储空间或权限不足。请先导出备份。');return false;}
 }
 function escapeHtml(value) {return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 const formatDate = date => new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'long',day:'numeric'}).format(date);
@@ -230,7 +230,7 @@ $('#event-form').onsubmit=e=>{
 $('#delete').onclick=()=>{const id=$('#event-form').elements.id.value;if(confirm('确定删除这个日子？')&&persist({...state,events:state.events.filter(x=>x.id!==id)})){$('#editor').close();render();toast('已删除');}};
 $('#archive').onclick=()=>{const id=$('#event-form').elements.id.value;if(persist({...state,events:state.events.map(x=>x.id===id?{...x,isArchived:!x.isArchived}:x)})){$('#editor').close();render();toast('已更新归档状态');}};
 document.querySelectorAll('.close').forEach(b=>b.onclick=()=>b.closest('dialog').close());
-function permissionStatus(){const status= !('Notification' in window)?'当前浏览器不支持系统通知':Notification.permission==='granted'?'浏览器通知已开启':Notification.permission==='denied'?'通知已被阻止，可在浏览器的网站设置中调整':'浏览器通知尚未开启';$('#permission-status').textContent=status;return status;}
+function permissionStatus(){const status= !('Notification' in window)?'当前设备暂不支持通知':Notification.permission==='granted'?'通知已开启':Notification.permission==='denied'?'通知权限未开启，请在系统设置中调整':'通知尚未开启';$('#permission-status').textContent=status;return status;}
 $('#settings').onclick=()=>{permissionStatus();$('#preferences').showModal();};
 $('#permission').onclick=async()=>{try{if('Notification' in window)await Notification.requestPermission();permissionStatus();}catch{toast('此环境暂时无法开启通知');}};
 $('#export').onclick=()=>{const blob=new Blob([JSON.stringify({version:1,exportedAt:new Date().toISOString(),...state},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`日缄-备份-${dateInput(new Date()).slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
@@ -263,7 +263,6 @@ function checkReminders(){
     notified.push(key);changed=true;
   }
   if(changed)persist({...state,notified:notified.slice(-1000)});
-  $('#reminder-status').textContent='提醒需保持页面打开。';
 }
 window.addEventListener('storage',e=>{if(e.key===KEY&&e.newValue){try{const data=JSON.parse(e.newValue);state={...data,events:data.events.map(validateEvent)};render();}catch{toast('另一窗口的数据无法读取，请导出备份后检查。');}}});
 let currentDay=new Date().toDateString();

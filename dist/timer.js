@@ -1,4 +1,4 @@
-import {prepareMusic} from './music.js?v=8';
+import {prepareMusic} from './music.js?v=9';
 const KEY = 'rijian-quick-timer';
 const $ = selector => document.querySelector(selector);
 const emptyTimer = {status:'idle',duration:300000,remaining:300000,deadline:null};
@@ -8,7 +8,7 @@ let report;
 let preparing = false;
 function save() {
   try { sessionStorage.setItem(KEY,JSON.stringify(timer)); }
-  catch { report('倒计时将在当前页面运行，刷新后的恢复暂不可用。'); }
+  catch { report('倒计时正在运行，计时进度暂时无法保存。'); }
 }
 function remainingTime() {
   return timer.status === 'running' ? Math.max(0,timer.deadline-Date.now()) : timer.remaining;

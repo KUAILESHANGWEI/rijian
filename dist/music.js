@@ -94,11 +94,11 @@ export async function prepareMusic() {
     if (!AudioContext) return false;
     context ||= new AudioContext();
     const resumed = context.resume();
-    await Promise.race([resumed,new Promise((_,reject)=>setTimeout(()=>reject(new Error('浏览器未允许播放声音')),3000))]);
+    await Promise.race([resumed,new Promise((_,reject)=>setTimeout(()=>reject(new Error('声音播放未获授权')),3000))]);
     await musicReady;
     if (!music) return false;
     buffer ||= await context.decodeAudioData(await music.file.arrayBuffer());
-    if (context.state !== 'running') throw new Error('浏览器未允许播放声音');
+    if (context.state !== 'running') throw new Error('声音播放未获授权');
     enabled = true;
     updateStatus();
     return true;
@@ -119,9 +119,9 @@ export async function initializeMusic(toast) {
     updateStatus();
     try {
       if (file.size > 30 * 1024 * 1024) throw new Error('请选择 30MB 以内的音乐');
-      if (!database) throw new Error('浏览器音乐存储不可用，请检查网站存储权限');
+      if (!database) throw new Error('音乐存储不可用，请检查存储权限');
       const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) throw new Error('当前浏览器不支持音乐提醒');
+      if (!AudioContext) throw new Error('当前设备暂不支持音乐提醒');
       context ||= new AudioContext();
       const decoded = await context.decodeAudioData(await file.arrayBuffer());
       if (!decoded.duration) throw new Error('音乐文件没有可播放内容');
@@ -139,11 +139,11 @@ export async function initializeMusic(toast) {
     try {
       if (!music || loading) return;
       const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) throw new Error('当前浏览器不支持音乐提醒');
+      if (!AudioContext) throw new Error('当前设备暂不支持音乐提醒');
       context ||= new AudioContext();
       await context.resume();
       buffer ||= await context.decodeAudioData(await music.file.arrayBuffer());
-      if (context.state !== 'running') throw new Error('浏览器未允许播放声音');
+      if (context.state !== 'running') throw new Error('声音播放未获授权');
       enabled = true;
       startPlayback('提醒音乐试听');
     } catch (error) { enabled = false; updateStatus(); report(`声音未启用，${error.message}`); }
@@ -160,12 +160,12 @@ export async function initializeMusic(toast) {
       buffer = null;
       enabled = false;
       report('提醒音乐已移除');
-    } catch { report('移除失败，请检查浏览器存储权限'); }
+    } catch { report('移除失败，请检查存储权限'); }
     finally { loading = false; updateStatus(); }
   };
   musicReady = (async () => {
     try { database = await openDatabase(); music = await readMusic(); }
-    catch { report('音乐存储暂时不可用，请检查浏览器存储权限'); }
+    catch { report('音乐存储暂时不可用，请检查存储权限'); }
     finally { loading = false; updateStatus(); }
   })();
   await musicReady;
