@@ -1,7 +1,8 @@
-import {initializeTimer} from './timer.js?v=9';
-import {initializeMusic,playReminderMusic} from './music.js?v=9';
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=9'
-import { Lunar, Solar } from './vendor/lunar.js?v=9';
+import {initializeClearPassword} from './clear-password.js?v=10';
+import {initializeTimer} from './timer.js?v=10';
+import {initializeMusic,playReminderMusic} from './music.js?v=10';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=10'
+import { Lunar, Solar } from './vendor/lunar.js?v=10';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];
@@ -249,7 +250,12 @@ $('#file').onchange=async e=>{
     if(persist({...state,events,labels:[...new Set([...state.labels,...data.labels])]})){render();toast(`已导入 ${added} 个日子`);}
   }catch(error){toast(`导入失败，${error.message}`);}finally{e.target.value='';}
 };
-$('#clear').onclick=()=>{if(confirm('清空所有日子和标签？建议先导出备份。')&&persist({events:[],labels:defaultLabels,notified:[]})){category='全部日子';render();toast('已清空');}};
+initializeClearPassword(() => {
+  if (!persist({events:[],labels:defaultLabels,notified:[]})) return false;
+  category='全部日子';
+  render();
+  return true;
+}, toast);
 function checkReminders(){
   const now=Date.now();let notified=[...(state.notified||[])];let changed=false;
   for(const event of state.events){
