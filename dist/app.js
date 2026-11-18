@@ -1,7 +1,7 @@
-import {initializeTimer} from './timer.js?v=7';
-import {initializeMusic,playReminderMusic} from './music.js?v=7';
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=7'
-import { Lunar, Solar } from './vendor/lunar.js?v=7';
+import {initializeTimer} from './timer.js?v=8';
+import {initializeMusic,playReminderMusic} from './music.js?v=8';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=8'
+import { Lunar, Solar } from './vendor/lunar.js?v=8';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];

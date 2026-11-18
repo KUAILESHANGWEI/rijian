@@ -7,6 +7,7 @@ let source;
 let enabled = false;
 let loading = true;
 let report;
+let musicReady = Promise.resolve();
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -40,7 +41,7 @@ function updateStatus() {
   $('#music-enable').disabled = loading || !music;
   $('#music-remove').disabled = loading || !music;
   $('#music-upload').disabled = loading;
-  $('#music-state').textContent = enabled ? '声音已启用。到期时播放所选音乐，最长 60 秒。' : '上传后点击“启用声音并试听”。刷新页面后需要重新启用。';
+  $('#music-state').textContent = enabled ? '声音已启用。到期时播放所选音乐，最长 60 秒。' : '倒计时点击“开始”或“继续”会自动准备声音。日子提醒可点击“启用声音并试听”。';
   $('#music-stop').disabled = !source;
 }
 export function stopMusic() {
@@ -86,6 +87,27 @@ export function playReminderMusic(title) {
   }
   try { startPlayback(`日子提醒 · ${title}`); }
   catch { enabled = false; updateStatus(); report('音乐未能播放，请重新启用声音。'); }
+}
+export async function prepareMusic() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return false;
+    context ||= new AudioContext();
+    const resumed = context.resume();
+    await Promise.race([resumed,new Promise((_,reject)=>setTimeout(()=>reject(new Error('浏览器未允许播放声音')),3000))]);
+    await musicReady;
+    if (!music) return false;
+    buffer ||= await context.decodeAudioData(await music.file.arrayBuffer());
+    if (context.state !== 'running') throw new Error('浏览器未允许播放声音');
+    enabled = true;
+    updateStatus();
+    return true;
+  } catch (error) {
+    enabled = false;
+    updateStatus();
+    report(`声音准备失败，${error.message}`);
+    return false;
+  }
 }
 export async function initializeMusic(toast) {
   report = toast;
@@ -141,7 +163,10 @@ export async function initializeMusic(toast) {
     } catch { report('移除失败，请检查浏览器存储权限'); }
     finally { loading = false; updateStatus(); }
   };
-  try { database = await openDatabase(); music = await readMusic(); }
-  catch { report('音乐存储暂时不可用，请检查浏览器存储权限'); }
-  finally { loading = false; updateStatus(); }
+  musicReady = (async () => {
+    try { database = await openDatabase(); music = await readMusic(); }
+    catch { report('音乐存储暂时不可用，请检查浏览器存储权限'); }
+    finally { loading = false; updateStatus(); }
+  })();
+  await musicReady;
 }

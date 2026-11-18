@@ -1,9 +1,11 @@
+import {prepareMusic} from './music.js?v=8';
 const KEY = 'rijian-quick-timer';
 const $ = selector => document.querySelector(selector);
 const emptyTimer = {status:'idle',duration:300000,remaining:300000,deadline:null};
 let timer = {...emptyTimer};
 let notify;
 let report;
+let preparing = false;
 function save() {
   try { sessionStorage.setItem(KEY,JSON.stringify(timer)); }
   catch { report('倒计时将在当前页面运行，刷新后的恢复暂不可用。'); }
@@ -25,10 +27,12 @@ function render() {
   const active = ['running','paused'].includes(timer.status);
   $('#timer-display').textContent = formatTime(remainingTime());
   $('#timer-state').textContent = {idle:'设置时长后开始',running:'倒计时进行中',paused:'已暂停',done:'时间到！'}[timer.status];
+  for (const id of ['timer-start','timer-pause','timer-reset']) $(`#${id}`).disabled = preparing;
+  $('#timer-start').textContent = preparing ? '准备中…' : '开始';
   $('#timer-start').hidden = active;
   $('#timer-pause').hidden = !active;
   $('#timer-pause').textContent = timer.status === 'paused' ? '继续' : '暂停';
-  document.querySelectorAll('#timer-form input').forEach(input=>input.disabled=active);
+  document.querySelectorAll('#timer-form input').forEach(input=>input.disabled=active || preparing);
   $('#timer-short-status').textContent = active ? `${formatTime(remainingTime())}${timer.status==='paused'?' · 已暂停':''}` : timer.status==='done'?'时间到':'';
 }
 function tick() {
@@ -48,7 +52,7 @@ export function initializeTimer(onFinished, onError) {
   } catch { /* Start with the default duration when no valid timer exists. */ }
   restoreInputs();
   $('#countdown').onclick = () => { tick(); $('#timer-error').textContent=''; $('#timer-dialog').showModal(); };
-  $('#timer-form').onsubmit = event => {
+  $('#timer-form').onsubmit = async event => {
     event.preventDefault();
     const values = ['hours','minutes','seconds'].map(name=>Number($(`#timer-${name}`).value));
     if (values.some(value=>!Number.isInteger(value)||value<0) || values[0]>99 || values[1]>59 || values[2]>59) {
@@ -57,17 +61,27 @@ export function initializeTimer(onFinished, onError) {
     }
     const duration = (values[0]*3600+values[1]*60+values[2])*1000;
     if (!duration) { $('#timer-error').textContent='倒计时时长须大于 0'; return; }
+    preparing = true;
+    render();
+    await prepareMusic();
+    preparing = false;
     timer = {status:'running',duration,remaining:duration,deadline:Date.now()+duration};
     $('#timer-error').textContent='';
     save();
     render();
   };
-  $('#timer-pause').onclick = () => {
+  $('#timer-pause').onclick = async () => {
     if (timer.status === 'running') {
       tick();
       if (timer.status !== 'running') return;
       timer = {...timer,status:'paused',remaining:remainingTime(),deadline:null};
-    } else if (timer.status === 'paused') timer = {...timer,status:'running',deadline:Date.now()+timer.remaining};
+    } else if (timer.status === 'paused') {
+      preparing = true;
+      render();
+      await prepareMusic();
+      preparing = false;
+      timer = {...timer,status:'running',deadline:Date.now()+timer.remaining};
+    }
     save();
     render();
   };

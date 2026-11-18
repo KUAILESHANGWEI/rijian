@@ -1,4 +1,4 @@
-import { Lunar, Solar, LunarMonth } from './vendor/lunar.js?v=7';
+import { Lunar, Solar, LunarMonth } from './vendor/lunar.js?v=8';
 const DAY = 86400000;
 export function dateInput(date) {
   const d = new Date(date);
