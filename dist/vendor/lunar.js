@@ -8526,4 +8526,4 @@ const calendar = (function(){
     I18n: I18n
   };
 })();
-export const { Solar, Lunar } = calendar;
+export const { Solar, Lunar, LunarMonth } = calendar;

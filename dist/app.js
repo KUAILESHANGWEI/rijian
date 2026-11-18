@@ -1,4 +1,4 @@
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=4';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];
@@ -61,10 +61,11 @@ function openEditor(id) {
   form.elements.id.value=event?.id||'';
   if (!event) form.elements.label.value = groupNames()[0] || '未分组';
   $('#editor-title').textContent=event?'编辑日子':'记一笔';
-  for(const name of ['title','emoji','label','repeatType','reminderMinutes','notes','lunarMonth','lunarDay']) if(event)form.elements[name].value=event[name];
+  for(const name of ['title','emoji','label','repeatType','reminderMinutes','notes','lunarMonth','lunarDay','repeatEvery','repeatUnit']) if(event)form.elements[name].value=event[name] ?? (name==='repeatEvery'?1:'day');
   for(const name of ['isLunar','isLunarLeap'])form.elements[name].checked=event?.[name]||false;
   const date=new Date();date.setHours(9,0,0,0);form.elements.date.value=dateInput(event?.targetDate||date);
   $('#lunar-fields').hidden=!event?.isLunar;
+  $('#custom-repeat').hidden = form.elements.repeatType.value !== '自定义';
   $('#emoji-picker').hidden = true;
   $('#emoji-toggle').setAttribute('aria-expanded','false');
   $('#delete').hidden=!event;$('#archive').hidden=!event;$('#archive').textContent=event?.isArchived?'取消归档':'归档';$('#form-error').textContent='';$('#editor').showModal();
@@ -134,6 +135,13 @@ $('#events').onclick=e=>{const b=e.target.closest('[data-id]');if(b)openEditor(b
 $('#tabs').onclick=e=>{if(e.target.dataset.tab){tab=e.target.dataset.tab;render();}};
 $('#search').oninput=e=>{query=e.target.value;render();};
 const emojiLibrary = {
+  '表情人物': ['😀','😃','😄','😁','😆','😅','😂','🤣','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😋','😎','🥳','🤗','🤔','🤫','🫡','😴','🥹','😭','😤','👍','👏','🙌','🙏','💪','🫶','👋','🤝','👶','👧','👦','👩','👨','👵','👴','🧑‍🎓','🧑‍🍳','🧑‍💻','🧑‍⚕️','👑'],
+  '动物自然': ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🦆','🦉','🦋','🐝','🐞','🐢','🐬','🐳','🐟','🐙','🦀','🦄','🌵','🌲','🌳','🌴','🍁','🍂','🌷','🌹','🌺','🌻','🌼','🪷','🌈','❄️','🔥','🌊','🌦️','⛄'],
+  '美食饮品': ['🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍒','🍑','🥭','🍍','🥑','🥦','🌽','🥕','🍞','🥐','🥯','🧀','🥚','🥞','🍔','🍟','🍕','🌮','🥟','🍜','🍝','🍣','🍙','🍱','🍰','🧁','🍩','🍪','🍫','🍬','🍭','🍦','🧋','🫖','🍵','🥛','🍹','🍷'],
+  '节日庆祝': ['🎂','🎉','🎊','🎈','🎁','🎀','🎆','🎇','🧨','🧧','🏮','🥮','🥟','🎄','🎅','🦌','⛄','🎃','👻','💝','💘','💐','💍','👰','🤵','🥂','🍾','🕯️','🎓','🏆','🥇','🏅'],
+  '运动爱好': ['⚽','🏀','🏈','⚾','🎾','🏐','🏓','🏸','🏒','🏹','🥊','🛹','🎣','🤿','🎿','🏂','🏋️','🚴','🏊','🧘','🎮','🎲','♟️','🧩','🎨','🎭','🎤','🎧','🎹','🎸','🎻','🥁','📷','🎬','📺','📚','✍️','🪴','🧵','🧶'],
+  '出行地点': ['✈️','🚀','🛸','🚁','🚂','🚄','🚇','🚌','🚗','🚕','🚲','🛵','⛵','🚢','🗺️','🧭','🧳','🎒','⛺','🏕️','🏖️','🏝️','🏔️','⛰️','🌋','🏜️','🏞️','🌅','🌄','🌃','🏙️','🏡','🏢','🏫','🏥','🏦','🏛️','⛩️','🗽','🗼'],
+  '物品符号': ['⌚','⏰','⏳','📅','🗓️','📌','📍','✂️','📎','🔑','🔒','💡','🔋','💻','⌨️','📱','☎️','🖨️','💾','💿','📦','✉️','📨','📬','📝','📓','📔','💵','💰','💳','💎','🛍️','🛒','🧸','🛏️','🛋️','🛁','🧹','❤️','🧡','💛','💚','💙','💜','🤎','🖤','🤍','💯','✅','❌','⚠️','♻️','🔔','🎵','∞','⭐'],
   '常用': ['🌿','🎂','❤️','🎉','🎁','⭐','📅','📖','🌸','☀️','🌙','✨','😊','🥰','🎈','🎇'],
   '生活': ['🏠','👪','👶','🐱','🐶','🌱','🍀','🌻','☕','🍰','🍎','🍜','🛒','💊','🏃','💤'],
   '纪念': ['💍','💐','💕','💌','🥂','🎓','🏆','🎊','🕯️','🎄','🧧','🏮','🎆','🎀','🎵','📷'],
@@ -162,6 +170,7 @@ $('#emoji-grid').onclick = event => {
   $('#emoji-toggle').focus();
 };
 $('#add').onclick=()=>openEditor();
+$('#event-form').elements.repeatType.onchange = event => { $('#custom-repeat').hidden = event.target.value !== '自定义'; };
 $('#event-form').elements.isLunar.onchange=e=>{$('#lunar-fields').hidden=!e.target.checked;};
 $('#event-form').onsubmit=e=>{
   e.preventDefault();const form=e.target;const raw=Object.fromEntries(new FormData(form));const existing=state.events.find(x=>x.id===raw.id);
@@ -188,7 +197,7 @@ $('#file').onchange=async e=>{
     const data=JSON.parse(await file.text());
     if(!Array.isArray(data.events)||!Array.isArray(data.labels)||data.events.length>10000||!data.labels.every(l=>typeof l==='string'&&l.length<=30))throw new Error('备份格式无效');
     const incoming=data.events.map(validateEvent);const events=[...state.events];
-    const signature=e=>JSON.stringify([e.title,e.targetDate,e.label,e.emoji,e.repeatType,e.isLunar,e.lunarMonth,e.lunarDay,e.isLunarLeap,e.notes,e.attachments,e.reminderMinutes,e.isArchived]);
+    const signature=e=>JSON.stringify([e.title,e.targetDate,e.label,e.emoji,e.repeatType,e.isLunar,e.lunarMonth,e.lunarDay,e.isLunarLeap,e.notes,e.attachments,e.reminderMinutes,e.isArchived,e.repeatEvery,e.repeatUnit]);
     const known=new Set(events.map(signature));
     for(const event of incoming){if(known.has(signature(event)))continue;known.add(signature(event));if(events.some(x=>x.id===event.id))event.id=crypto.randomUUID();events.push(event);}
     const added=events.length-state.events.length;
