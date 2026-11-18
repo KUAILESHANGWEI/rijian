@@ -1,8 +1,8 @@
-import {initializeClearPassword} from './clear-password.js?v=16';
-import {initializeTimer} from './timer.js?v=16';
-import {initializeMusic,playReminderMusic} from './music.js?v=16';
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=16'
-import { Lunar, Solar } from './vendor/lunar.js?v=16';
+import {initializeClearPassword} from './clear-password.js?v=17';
+import {initializeTimer} from './timer.js?v=17';
+import {initializeMusic,playReminderMusic} from './music.js?v=17';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=17'
+import { Lunar, Solar } from './vendor/lunar.js?v=17';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];
@@ -172,22 +172,9 @@ $('#categories').onclick=e=>{const b=e.target.closest('[data-category]');if(b){c
 $('#events').onclick=e=>{const b=e.target.closest('[data-id]');if(b)openEditor(b.dataset.id);};
 $('#tabs').onclick=e=>{if(e.target.dataset.tab){tab=e.target.dataset.tab;render();}};
 $('#search').oninput=e=>{query=e.target.value;render();};
-const emojiLibrary = {
-  '表情人物': ['😀','😃','😄','😁','😆','😅','😂','🤣','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😋','😎','🥳','🤗','🤔','🤫','🫡','😴','🥹','😭','😤','👍','👏','🙌','🙏','💪','🫶','👋','🤝','👶','👧','👦','👩','👨','👵','👴','🧑‍🎓','🧑‍🍳','🧑‍💻','🧑‍⚕️','👑'],
-  '动物自然': ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🦆','🦉','🦋','🐝','🐞','🐢','🐬','🐳','🐟','🐙','🦀','🦄','🌵','🌲','🌳','🌴','🍁','🍂','🌷','🌹','🌺','🌻','🌼','🪷','🌈','❄️','🔥','🌊','🌦️','⛄'],
-  '美食饮品': ['🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍒','🍑','🥭','🍍','🥑','🥦','🌽','🥕','🍞','🥐','🥯','🧀','🥚','🥞','🍔','🍟','🍕','🌮','🥟','🍜','🍝','🍣','🍙','🍱','🍰','🧁','🍩','🍪','🍫','🍬','🍭','🍦','🧋','🫖','🍵','🥛','🍹','🍷'],
-  '节日庆祝': ['🎂','🎉','🎊','🎈','🎁','🎀','🎆','🎇','🧨','🧧','🏮','🥮','🥟','🎄','🎅','🦌','⛄','🎃','👻','💝','💘','💐','💍','👰','🤵','🥂','🍾','🕯️','🎓','🏆','🥇','🏅'],
-  '运动爱好': ['⚽','🏀','🏈','⚾','🎾','🏐','🏓','🏸','🏒','🏹','🥊','🛹','🎣','🤿','🎿','🏂','🏋️','🚴','🏊','🧘','🎮','🎲','♟️','🧩','🎨','🎭','🎤','🎧','🎹','🎸','🎻','🥁','📷','🎬','📺','📚','✍️','🪴','🧵','🧶'],
-  '出行地点': ['✈️','🚀','🛸','🚁','🚂','🚄','🚇','🚌','🚗','🚕','🚲','🛵','⛵','🚢','🗺️','🧭','🧳','🎒','⛺','🏕️','🏖️','🏝️','🏔️','⛰️','🌋','🏜️','🏞️','🌅','🌄','🌃','🏙️','🏡','🏢','🏫','🏥','🏦','🏛️','⛩️','🗽','🗼'],
-  '物品符号': ['⌚','⏰','⏳','📅','🗓️','📌','📍','✂️','📎','🔑','🔒','💡','🔋','💻','⌨️','📱','☎️','🖨️','💾','💿','📦','✉️','📨','📬','📝','📓','📔','💵','💰','💳','💎','🛍️','🛒','🧸','🛏️','🛋️','🛁','🧹','❤️','🧡','💛','💚','💙','💜','🤎','🖤','🤍','💯','✅','❌','⚠️','♻️','🔔','🎵','∞','⭐'],
-  '常用': ['🌿','🎂','❤️','🎉','🎁','⭐','📅','📖','🌸','☀️','🌙','✨','😊','🥰','🎈','🎇'],
-  '生活': ['🏠','👪','👶','🐱','🐶','🌱','🍀','🌻','☕','🍰','🍎','🍜','🛒','💊','🏃','💤'],
-  '纪念': ['💍','💐','💕','💌','🥂','🎓','🏆','🎊','🕯️','🎄','🧧','🏮','🎆','🎀','🎵','📷'],
-  '工作旅行': ['💼','💻','📝','📚','📌','⏰','💰','💳','✈️','🚄','🚗','🏕️','🏖️','⛰️','🧳','🌍']
-};
-function renderEmojiLibrary(category = '常用') {
-  $('#emoji-categories').innerHTML = Object.keys(emojiLibrary).map(name=>`<button type="button" data-emoji-category="${name}" aria-pressed="${name===category}" class="${name===category?'selected':''}">${name}</button>`).join('');
-  $('#emoji-grid').innerHTML = emojiLibrary[category].map(emoji=>`<button type="button" data-emoji="${emoji}" aria-label="选择 ${emoji}">${emoji}</button>`).join('');
+const emojiLibrary = ['😊','😂','🥰','😎','👍','❤️','🎂','🎉','🎁','🌸','🌿','☀️','⭐','🏠','📚','💼','💰','✈️','⏰','📅'];
+function renderEmojiLibrary() {
+  $('#emoji-grid').innerHTML = emojiLibrary.map(emoji=>`<button type="button" data-emoji="${emoji}" aria-label="选择 ${emoji}">${emoji}</button>`).join('');
 }
 $('#emoji-input').onclick = () => {
   $('#emoji-picker').hidden = false;
@@ -196,10 +183,6 @@ $('#emoji-input').onclick = () => {
 };
 $('#emoji-input').onkeydown = event => {
   if (event.key === 'Enter') { event.preventDefault(); $('#emoji-input').click(); }
-};
-$('#emoji-categories').onclick = event => {
-  const button = event.target.closest('[data-emoji-category]');
-  if (button) renderEmojiLibrary(button.dataset.emojiCategory);
 };
 $('#emoji-grid').onclick = event => {
   const button = event.target.closest('[data-emoji]');
