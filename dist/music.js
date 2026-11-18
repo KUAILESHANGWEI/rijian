@@ -41,7 +41,7 @@ function updateStatus() {
   $('#music-enable').disabled = loading || !music;
   $('#music-remove').disabled = loading || !music;
   $('#music-upload').disabled = loading;
-  $('#music-state').textContent = enabled ? '声音已启用，到时播放所选音乐。' : '倒计时开始时自动准备声音；日子提醒请先启用声音。';
+  $('#music-state').textContent = enabled ? '声音已启用，到时播放所选音乐。' : '操作 App 或保存提醒时自动准备声音。';
   $('#music-stop').disabled = !source;
 }
 export function stopMusic() {
@@ -73,20 +73,20 @@ function startPlayback(title) {
   playback.start(0, 0, Math.min(buffer.duration, 60));
   updateStatus();
 }
-export function playReminderMusic(title) {
-  if (!music) return;
+export function playReminderMusic(title, {quiet = false} = {}) {
+  if (!music) return false;
   if (!enabled || context?.state !== 'running' || !buffer) {
     enabled = false;
     updateStatus();
-    report('提醒已到，请在备份与设置中点击“启用声音并试听”。');
-    return;
+    if (!quiet) report('提醒已到，声音尚未准备好，请重新保存提醒或启用声音。');
+    return false;
   }
   if (source) {
     $('#music-playing-title').textContent = `日子提醒 · ${title}`;
-    return;
+    return true;
   }
-  try { startPlayback(`日子提醒 · ${title}`); }
-  catch { enabled = false; updateStatus(); report('音乐未能播放，请重新启用声音。'); }
+  try { startPlayback(`日子提醒 · ${title}`); return true; }
+  catch { enabled = false; updateStatus(); if (!quiet) report('音乐未能播放，请重新启用声音。'); return false; }
 }
 export async function prepareMusic() {
   try {

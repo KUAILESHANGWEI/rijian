@@ -1,8 +1,8 @@
-import {initializeClearPassword} from './clear-password.js?v=17';
-import {initializeTimer} from './timer.js?v=17';
-import {initializeMusic,playReminderMusic} from './music.js?v=17';
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=17'
-import { Lunar, Solar } from './vendor/lunar.js?v=17';
+import {initializeClearPassword} from './clear-password.js?v=18';
+import {initializeTimer} from './timer.js?v=18';
+import {initializeMusic,playReminderMusic,prepareMusic} from './music.js?v=18';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=18'
+import { Lunar, Solar } from './vendor/lunar.js?v=18';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];
@@ -211,8 +211,13 @@ $('#calendar-mode').onclick = event => {
   $('#event-form').elements.isLunar.checked = button.dataset.calendar === 'lunar';
   updateCalendarMode();
 };
-$('#event-form').onsubmit=e=>{
-  e.preventDefault();const form=e.target;const raw=Object.fromEntries(new FormData(form));const existing=state.events.find(x=>x.id===raw.id);
+let eventSaving = false;
+$('#event-form').onsubmit=async e=>{
+  e.preventDefault();
+  if (eventSaving) return;
+  eventSaving = true;
+  const submit = $('#event-form button[type=submit]');
+  submit.disabled = true;const form=e.target;const raw=Object.fromEntries(new FormData(form));const existing=state.events.find(x=>x.id===raw.id);
   try {
     raw.label = validGroupName(raw.label);
     const year = Number(raw.entryYear);
@@ -229,9 +234,11 @@ $('#event-form').onsubmit=e=>{
     }
     const event=validateEvent({...existing,...raw,id:raw.id||crypto.randomUUID(),targetDate:target.getTime(),lunarMonth:month,lunarDay:Math.min(day,30),isLunar:form.elements.isLunar.checked,isLunarLeap:form.elements.isLunarLeap.checked,repeatType:raw.repeatType});
     if(event.isLunar&&!nextOccurrence(event))throw new Error('无法匹配这个农历日期，请检查公历年份、农历月日和闰月。');
+    const soundReady = event.reminderMinutes >= 0 ? await prepareMusic() : true;
     const events=existing?state.events.map(x=>x.id===event.id?event:x):[...state.events,event];
-    if(persist({...state,events,labels:[...new Set([...state.labels,event.label])]})){ $('#editor').close();render();toast('日子已保存');checkReminders(); }
+    if(persist({...state,events,labels:[...new Set([...state.labels,event.label])]})){ $('#editor').close();render();toast(soundReady ? '日子已保存' : '日子已保存，提醒声音尚未准备好');checkReminders(); }
   } catch(error){$('#form-error').textContent=error.message;}
+  finally { eventSaving = false; submit.disabled = false; }
 };
 $('#delete').onclick=()=>{const id=$('#event-form').elements.id.value;if(confirm('确定删除这个日子？')&&persist({...state,events:state.events.filter(x=>x.id!==id)})){$('#editor').close();render();toast('已删除');}};
 $('#archive').onclick=()=>{const id=$('#event-form').elements.id.value;if(persist({...state,events:state.events.map(x=>x.id===id?{...x,isArchived:!x.isArchived}:x)})){$('#editor').close();render();toast('已更新归档状态');}};
@@ -262,24 +269,41 @@ initializeClearPassword(() => {
   return true;
 }, toast);
 function checkReminders(){
-  const now=Date.now();let notified=[...(state.notified||[])];let changed=false;
-  for(const event of state.events){
-    if(event.isArchived||event.reminderMinutes<0)continue;
-    const date=nextOccurrence(event);if(!date)continue;
-    const due=date.getTime()-event.reminderMinutes*60000;const key=`${event.id}-${date.getTime()}-${event.reminderMinutes}`;
-    if(due>now||now-due>86400000||notified.includes(key))continue;
-    toast(`日子提醒 · ${event.title}`);
-    playReminderMusic(event.title);
-    if('Notification' in window&&Notification.permission==='granted'){try{new Notification('日缄 · 日子提醒',{body:event.title,tag:key});}catch{/* In-page reminder remains available. */}}
-    notified.push(key);changed=true;
+  const now = Date.now();
+  const notified = [...(state.notified || [])];
+  const sounded = [...(state.sounded || [])];
+  let changed = false;
+  for (const event of state.events) {
+    if (event.isArchived || event.reminderMinutes < 0) continue;
+    const date = nextOccurrence(event);
+    if (!date) continue;
+    const due = date.getTime()-event.reminderMinutes*60000;
+    const key = `${event.id}-${date.getTime()}-${event.reminderMinutes}`;
+    if (due > now || now-due > 86400000) continue;
+    const firstNotice = !notified.includes(key);
+    if (firstNotice) {
+      toast(`日子提醒 · ${event.title}`);
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try { new Notification('日缄 · 日子提醒',{body:event.title,tag:key}); } catch { /* In-app reminder remains visible. */ }
+      }
+      notified.push(key);
+      changed = true;
+    }
+    if (!sounded.includes(key) && (firstNotice || now-due <= 300000)) {
+      if (playReminderMusic(event.title,{quiet:!firstNotice})) {
+        sounded.push(key);
+        changed = true;
+      }
+    }
   }
-  if(changed)persist({...state,notified:notified.slice(-1000)});
+  if (changed) persist({...state,notified:notified.slice(-1000),sounded:sounded.slice(-1000)});
 }
 window.addEventListener('storage',e=>{if(e.key===KEY&&e.newValue){try{const data=JSON.parse(e.newValue);state={...data,events:data.events.map(validateEvent)};render();}catch{toast('另一窗口的数据无法读取，请导出备份后检查。');}}});
 let currentDay=new Date().toDateString();
-setInterval(()=>{if(new Date().toDateString()!==currentDay){currentDay=new Date().toDateString();render();}checkReminders();},30000);
+setInterval(()=>{if(new Date().toDateString()!==currentDay){currentDay=new Date().toDateString();render();}checkReminders();},1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();checkReminders();}});
 initializeMusic(toast);
+document.addEventListener('click',() => { void prepareMusic(); },{once:true,capture:true});
 initializeTimer(message => {
   toast(message);
   playReminderMusic('倒计时结束');
