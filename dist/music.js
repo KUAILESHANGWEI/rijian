@@ -41,7 +41,7 @@ function updateStatus() {
   $('#music-enable').disabled = loading || !music;
   $('#music-remove').disabled = loading || !music;
   $('#music-upload').disabled = loading;
-  $('#music-state').textContent = enabled ? '声音已启用。到期时播放所选音乐，最长 60 秒。' : '倒计时点击“开始”或“继续”会自动准备声音。日子提醒可点击“启用声音并试听”。';
+  $('#music-state').textContent = enabled ? '声音已启用，到时播放所选音乐。' : '倒计时开始时自动准备声音；日子提醒请先启用声音。';
   $('#music-stop').disabled = !source;
 }
 export function stopMusic() {
