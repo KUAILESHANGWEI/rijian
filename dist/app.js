@@ -1,8 +1,8 @@
-import {initializeClearPassword} from './clear-password.js?v=18';
-import {initializeTimer} from './timer.js?v=18';
-import {initializeMusic,playReminderMusic,prepareMusic} from './music.js?v=18';
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=18'
-import { Lunar, Solar } from './vendor/lunar.js?v=18';
+import {initializeClearPassword} from './clear-password.js?v=19';
+import {initializeTimer} from './timer.js?v=19';
+import {initializeMusic,playReminderMusic,prepareMusic} from './music.js?v=19';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=19'
+import { Lunar, Solar } from './vendor/lunar.js?v=19';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];

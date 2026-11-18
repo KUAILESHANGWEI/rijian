@@ -41,7 +41,7 @@ function updateStatus() {
   $('#music-enable').disabled = loading || !music;
   $('#music-remove').disabled = loading || !music;
   $('#music-upload').disabled = loading;
-  $('#music-state').textContent = enabled ? '声音已启用，到时播放所选音乐。' : '操作 App 或保存提醒时自动准备声音。';
+  $('#music-state').textContent = enabled ? '声音已启用，提醒音乐循环播放，点击“停止播放”结束。' : '操作 App 或保存提醒时自动准备声音。';
   $('#music-stop').disabled = !source;
 }
 export function stopMusic() {
@@ -55,10 +55,11 @@ export function stopMusic() {
   $('#music-playing').hidden = true;
   updateStatus();
 }
-function startPlayback(title) {
+function startPlayback(title, loop = false) {
   stopMusic();
   const playback = context.createBufferSource();
   playback.buffer = buffer;
+  playback.loop = loop;
   playback.connect(context.destination);
   playback.onended = () => {
     if (source !== playback) return;
@@ -70,7 +71,7 @@ function startPlayback(title) {
   source = playback;
   $('#music-playing-title').textContent = title;
   $('#music-playing').hidden = false;
-  playback.start(0, 0, Math.min(buffer.duration, 60));
+  playback.start();
   updateStatus();
 }
 export function playReminderMusic(title, {quiet = false} = {}) {
@@ -82,10 +83,11 @@ export function playReminderMusic(title, {quiet = false} = {}) {
     return false;
   }
   if (source) {
+    source.loop = true;
     $('#music-playing-title').textContent = `日子提醒 · ${title}`;
     return true;
   }
-  try { startPlayback(`日子提醒 · ${title}`); return true; }
+  try { startPlayback(`日子提醒 · ${title}`, true); return true; }
   catch { enabled = false; updateStatus(); if (!quiet) report('音乐未能播放，请重新启用声音。'); return false; }
 }
 export async function prepareMusic() {
