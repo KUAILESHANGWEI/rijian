@@ -1,4 +1,4 @@
-import { Lunar } from './vendor/lunar.js';
+import { Lunar, Solar } from './vendor/lunar.js';
 const DAY = 86400000;
 export function dateInput(date) {
   const d = new Date(date);
@@ -15,9 +15,27 @@ function clampedDate(year, month, day, source) {
 }
 const lunarCache = new Map();
 export function nextOccurrence(event, now = new Date()) {
-  const source = new Date(event.targetDate);
+  let source = new Date(event.targetDate);
   const today = new Date(now.getFullYear(),now.getMonth(),now.getDate());
-  if (event.isLunar) {
+  if (event.isLunar && ['从不','每周','每月'].includes(event.repeatType)) {
+    const year = Solar.fromDate(source).getLunar().getYear();
+    try {
+      const solar = Lunar.fromYmd(year,event.isLunarLeap?-event.lunarMonth:event.lunarMonth,event.lunarDay).getSolar();
+      source = new Date(solar.getYear(),solar.getMonth()-1,solar.getDay(),source.getHours(),source.getMinutes());
+    } catch { return null; }
+  }
+  if (event.isLunar && event.repeatType === '每月') {
+    const cursor = new Date(Math.max(today.getTime(),source.getTime()));
+    for (let day = 0; day < 400; day++) {
+      if (Solar.fromDate(cursor).getLunar().getDay() === event.lunarDay) {
+        cursor.setHours(source.getHours(),source.getMinutes(),0,0);
+        return cursor;
+      }
+      cursor.setDate(cursor.getDate()+1);
+    }
+    return null;
+  }
+  if (event.isLunar && event.repeatType === '每年') {
     const key = `${event.lunarMonth}-${event.lunarDay}-${event.isLunarLeap}-${dateInput(today)}`;
     let result = lunarCache.get(key);
     if (result === undefined) {

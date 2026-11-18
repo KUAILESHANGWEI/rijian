@@ -64,7 +64,9 @@ function openEditor(id) {
   for(const name of ['title','emoji','label','repeatType','reminderMinutes','notes','lunarMonth','lunarDay']) if(event)form.elements[name].value=event[name];
   for(const name of ['isLunar','isLunarLeap'])form.elements[name].checked=event?.[name]||false;
   const date=new Date();date.setHours(9,0,0,0);form.elements.date.value=dateInput(event?.targetDate||date);
-  $('#lunar-fields').hidden=!event?.isLunar;form.elements.repeatType.disabled=!!event?.isLunar;
+  $('#lunar-fields').hidden=!event?.isLunar;
+  $('#emoji-picker').hidden = true;
+  $('#emoji-toggle').setAttribute('aria-expanded','false');
   $('#delete').hidden=!event;$('#archive').hidden=!event;$('#archive').textContent=event?.isArchived?'取消归档':'归档';$('#form-error').textContent='';$('#editor').showModal();
 }
 function groupNames() {
@@ -131,14 +133,42 @@ $('#categories').onclick=e=>{const b=e.target.closest('[data-category]');if(b){c
 $('#events').onclick=e=>{const b=e.target.closest('[data-id]');if(b)openEditor(b.dataset.id);};
 $('#tabs').onclick=e=>{if(e.target.dataset.tab){tab=e.target.dataset.tab;render();}};
 $('#search').oninput=e=>{query=e.target.value;render();};
+const emojiLibrary = {
+  '常用': ['🌿','🎂','❤️','🎉','🎁','⭐','📅','📖','🌸','☀️','🌙','✨','😊','🥰','🎈','🎇'],
+  '生活': ['🏠','👪','👶','🐱','🐶','🌱','🍀','🌻','☕','🍰','🍎','🍜','🛒','💊','🏃','💤'],
+  '纪念': ['💍','💐','💕','💌','🥂','🎓','🏆','🎊','🕯️','🎄','🧧','🏮','🎆','🎀','🎵','📷'],
+  '工作旅行': ['💼','💻','📝','📚','📌','⏰','💰','💳','✈️','🚄','🚗','🏕️','🏖️','⛰️','🧳','🌍']
+};
+function renderEmojiLibrary(category = '常用') {
+  $('#emoji-categories').innerHTML = Object.keys(emojiLibrary).map(name=>`<button type="button" data-emoji-category="${name}" aria-pressed="${name===category}" class="${name===category?'selected':''}">${name}</button>`).join('');
+  $('#emoji-grid').innerHTML = emojiLibrary[category].map(emoji=>`<button type="button" data-emoji="${emoji}" aria-label="选择 ${emoji}">${emoji}</button>`).join('');
+}
+$('#emoji-toggle').onclick = () => {
+  const open = $('#emoji-picker').hidden;
+  $('#emoji-picker').hidden = !open;
+  $('#emoji-toggle').setAttribute('aria-expanded',String(open));
+  if (open) renderEmojiLibrary();
+};
+$('#emoji-categories').onclick = event => {
+  const button = event.target.closest('[data-emoji-category]');
+  if (button) renderEmojiLibrary(button.dataset.emojiCategory);
+};
+$('#emoji-grid').onclick = event => {
+  const button = event.target.closest('[data-emoji]');
+  if (!button) return;
+  $('#event-form').elements.emoji.value = button.dataset.emoji;
+  $('#emoji-picker').hidden = true;
+  $('#emoji-toggle').setAttribute('aria-expanded','false');
+  $('#emoji-toggle').focus();
+};
 $('#add').onclick=()=>openEditor();
-$('.check input').onchange=e=>{$('#lunar-fields').hidden=!e.target.checked;$('#event-form').elements.repeatType.disabled=e.target.checked;};
+$('#event-form').elements.isLunar.onchange=e=>{$('#lunar-fields').hidden=!e.target.checked;};
 $('#event-form').onsubmit=e=>{
   e.preventDefault();const form=e.target;const raw=Object.fromEntries(new FormData(form));const existing=state.events.find(x=>x.id===raw.id);
   try {
     raw.label = validGroupName(raw.label);
-    const event=validateEvent({...existing,...raw,id:raw.id||crypto.randomUUID(),targetDate:new Date(raw.date).getTime(),isLunar:form.elements.isLunar.checked,isLunarLeap:form.elements.isLunarLeap.checked,repeatType:form.elements.isLunar.checked?'每年':raw.repeatType});
-    if(event.isLunar&&!nextOccurrence(event))throw new Error('未来 23 年内没有这个农历日期，请检查月份、日期和闰月。');
+    const event=validateEvent({...existing,...raw,id:raw.id||crypto.randomUUID(),targetDate:new Date(raw.date).getTime(),isLunar:form.elements.isLunar.checked,isLunarLeap:form.elements.isLunarLeap.checked,repeatType:raw.repeatType});
+    if(event.isLunar&&!nextOccurrence(event))throw new Error('无法匹配这个农历日期，请检查公历年份、农历月日和闰月。');
     const events=existing?state.events.map(x=>x.id===event.id?event:x):[...state.events,event];
     if(persist({...state,events,labels:[...new Set([...state.labels,event.label])]})){ $('#editor').close();render();toast('日子已保存');checkReminders(); }
   } catch(error){$('#form-error').textContent=error.message;}
