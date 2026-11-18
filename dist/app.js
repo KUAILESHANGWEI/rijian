@@ -1,8 +1,8 @@
-import {initializeClearPassword} from './clear-password.js?v=14';
-import {initializeTimer} from './timer.js?v=14';
-import {initializeMusic,playReminderMusic} from './music.js?v=14';
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=14'
-import { Lunar, Solar } from './vendor/lunar.js?v=14';
+import {initializeClearPassword} from './clear-password.js?v=15';
+import {initializeTimer} from './timer.js?v=15';
+import {initializeMusic,playReminderMusic} from './music.js?v=15';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=15'
+import { Lunar, Solar } from './vendor/lunar.js?v=15';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];
@@ -80,7 +80,7 @@ function openEditor(id) {
   updateCalendarMode();
   $('#custom-repeat').hidden = form.elements.repeatType.value !== '自定义';
   $('#emoji-picker').hidden = true;
-  $('#emoji-toggle').setAttribute('aria-expanded','false');
+  $('#emoji-input').setAttribute('aria-expanded','false');
   $('#delete').hidden=!event;$('#archive').hidden=!event;$('#archive').textContent=event?.isArchived?'取消归档':'归档';$('#form-error').textContent='';$('#editor').showModal();
 }
 function groupNames() {
@@ -183,14 +183,11 @@ function renderEmojiLibrary(category = '常用') {
 }
 $('#emoji-input').onclick = () => {
   $('#emoji-picker').hidden = false;
-  $('#emoji-toggle').setAttribute('aria-expanded','true');
+  $('#emoji-input').setAttribute('aria-expanded','true');
   renderEmojiLibrary();
 };
-$('#emoji-toggle').onclick = () => {
-  const open = $('#emoji-picker').hidden;
-  $('#emoji-picker').hidden = !open;
-  $('#emoji-toggle').setAttribute('aria-expanded',String(open));
-  if (open) renderEmojiLibrary();
+$('#emoji-input').onkeydown = event => {
+  if (event.key === 'Enter') { event.preventDefault(); $('#emoji-input').click(); }
 };
 $('#emoji-categories').onclick = event => {
   const button = event.target.closest('[data-emoji-category]');
@@ -201,8 +198,8 @@ $('#emoji-grid').onclick = event => {
   if (!button) return;
   $('#event-form').elements.emoji.value = button.dataset.emoji;
   $('#emoji-picker').hidden = true;
-  $('#emoji-toggle').setAttribute('aria-expanded','false');
-  $('#emoji-toggle').focus();
+  $('#emoji-input').setAttribute('aria-expanded','false');
+  $('#emoji-input').focus();
 };
 $('#add').onclick=()=>openEditor();
 $('#event-form').elements.repeatType.onchange = event => { $('#custom-repeat').hidden = event.target.value !== '自定义'; };
