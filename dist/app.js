@@ -40,7 +40,7 @@ function countMarkup(date,featured=false) {
 }
 function render() {
   $('#today').textContent = new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'}).format(new Date());
-  const labels = [...new Set([...defaultLabels,...state.labels,...state.events.map(e=>e.label)])];
+  const labels = groupNames();
   const categories=['全部日子',...labels,'已归档'];
   $('#categories').innerHTML=categories.map((name,i)=>`<button data-category="${escapeHtml(name)}" class="${name===category?'active':''}" aria-pressed="${name===category}"><span class="nav-icon"><svg viewBox="0 0 24 24">${icons[Math.min(i,4)]}</svg></span>${escapeHtml(name)}</button>`).join('');
   $('#label-options').innerHTML=labels.map(l=>`<option value="${escapeHtml(l)}">`).join('');
@@ -59,6 +59,7 @@ function render() {
 function openEditor(id) {
   const event=state.events.find(e=>e.id===id);const form=$('#event-form');form.reset();
   form.elements.id.value=event?.id||'';
+  if (!event) form.elements.label.value = groupNames()[0] || '未分组';
   $('#editor-title').textContent=event?'编辑日子':'记一笔';
   for(const name of ['title','emoji','label','repeatType','reminderMinutes','notes','lunarMonth','lunarDay']) if(event)form.elements[name].value=event[name];
   for(const name of ['isLunar','isLunarLeap'])form.elements[name].checked=event?.[name]||false;
@@ -66,6 +67,66 @@ function openEditor(id) {
   $('#lunar-fields').hidden=!event?.isLunar;form.elements.repeatType.disabled=!!event?.isLunar;
   $('#delete').hidden=!event;$('#archive').hidden=!event;$('#archive').textContent=event?.isArchived?'取消归档':'归档';$('#form-error').textContent='';$('#editor').showModal();
 }
+function groupNames() {
+  return [...new Set([...state.labels,...state.events.map(event=>event.label)])];
+}
+function validGroupName(value) {
+  const name = String(value || '').trim();
+  if (!name || name.length > 30) throw new Error('分组名称须为 1 至 30 个字符');
+  if (['全部日子','已归档'].includes(name)) throw new Error('请使用其他分组名称');
+  return name;
+}
+function renderGroups() {
+  $('#group-list').innerHTML = groupNames().filter(name=>name!=='未分组').map(name=>`<form class="group-row" data-group="${escapeHtml(name)}"><input name="name" aria-label="${escapeHtml(name)}的新名称" value="${escapeHtml(name)}" maxlength="30" required><button type="submit">保存</button><button type="button" data-delete-group="${escapeHtml(name)}" class="danger" aria-label="删除分组${escapeHtml(name)}">删除</button></form>`).join('') || '<p class="group-hint">还没有分组，可以在下方新增。</p>';
+}
+$('#manage-groups').onclick = () => {
+  $('#group-error').textContent = '';
+  renderGroups();
+  $('#groups').showModal();
+};
+$('#group-list').onsubmit = event => {
+  event.preventDefault();
+  const form = event.target;
+  const previous = form.dataset.group;
+  try {
+    const name = validGroupName(form.elements.name.value);
+    if (name === '未分组') throw new Error('“未分组”用于收纳删除分组后的日子，请使用其他名称');
+    if (name !== previous && groupNames().includes(name)) throw new Error('这个分组名称已存在');
+    const next = {...state,labels:groupNames().map(label=>label===previous?name:label),events:state.events.map(item=>item.label===previous?{...item,label:name}:item)};
+    if (!persist(next)) return;
+    if (category === previous) category = name;
+    $('#group-error').textContent = '';
+    render();
+    renderGroups();
+    toast('分组名称已保存');
+  } catch (error) { $('#group-error').textContent = error.message; }
+};
+$('#group-list').onclick = event => {
+  const button = event.target.closest('[data-delete-group]');
+  if (!button) return;
+  const name = button.dataset.deleteGroup;
+  if (!confirm(`删除“${name}”分组？组内日子会移至“未分组”。`)) return;
+  const next = {...state,labels:groupNames().filter(label=>label!==name),events:state.events.map(item=>item.label===name?{...item,label:'未分组'}:item)};
+  if (!persist(next)) return;
+  if (category === name) category = '全部日子';
+  $('#group-error').textContent = '';
+  render();
+  renderGroups();
+  toast('分组已删除');
+};
+$('#new-group-form').onsubmit = event => {
+  event.preventDefault();
+  try {
+    const name = validGroupName(event.target.elements.name.value);
+    if (name === '未分组' || groupNames().includes(name)) throw new Error('这个分组名称已存在或为保留名称');
+    if (!persist({...state,labels:[...groupNames(),name]})) return;
+    event.target.reset();
+    $('#group-error').textContent = '';
+    render();
+    renderGroups();
+    toast('分组已新增');
+  } catch (error) { $('#group-error').textContent = error.message; }
+};
 $('#categories').onclick=e=>{const b=e.target.closest('[data-category]');if(b){category=b.dataset.category;render();}};
 $('#events').onclick=e=>{const b=e.target.closest('[data-id]');if(b)openEditor(b.dataset.id);};
 $('#tabs').onclick=e=>{if(e.target.dataset.tab){tab=e.target.dataset.tab;render();}};
@@ -75,6 +136,7 @@ $('.check input').onchange=e=>{$('#lunar-fields').hidden=!e.target.checked;$('#e
 $('#event-form').onsubmit=e=>{
   e.preventDefault();const form=e.target;const raw=Object.fromEntries(new FormData(form));const existing=state.events.find(x=>x.id===raw.id);
   try {
+    raw.label = validGroupName(raw.label);
     const event=validateEvent({...existing,...raw,id:raw.id||crypto.randomUUID(),targetDate:new Date(raw.date).getTime(),isLunar:form.elements.isLunar.checked,isLunarLeap:form.elements.isLunarLeap.checked,repeatType:form.elements.isLunar.checked?'每年':raw.repeatType});
     if(event.isLunar&&!nextOccurrence(event))throw new Error('未来 23 年内没有这个农历日期，请检查月份、日期和闰月。');
     const events=existing?state.events.map(x=>x.id===event.id?event:x):[...state.events,event];
@@ -87,7 +149,7 @@ document.querySelectorAll('.close').forEach(b=>b.onclick=()=>b.closest('dialog')
 function permissionStatus(){const status= !('Notification' in window)?'当前浏览器不支持系统通知':Notification.permission==='granted'?'浏览器通知已开启':Notification.permission==='denied'?'通知已被阻止，可在浏览器的网站设置中调整':'浏览器通知尚未开启';$('#permission-status').textContent=status;return status;}
 $('#settings').onclick=()=>{permissionStatus();$('#preferences').showModal();};
 $('#permission').onclick=async()=>{try{if('Notification' in window)await Notification.requestPermission();permissionStatus();}catch{toast('此环境暂时无法开启通知');}};
-$('#export').onclick=()=>{const blob=new Blob([JSON.stringify({version:1,exportedAt:new Date().toISOString(),...state},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`笺-备份-${dateInput(new Date()).slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+$('#export').onclick=()=>{const blob=new Blob([JSON.stringify({version:1,exportedAt:new Date().toISOString(),...state},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`日缄-备份-${dateInput(new Date()).slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 $('#import').onclick=()=>$('#file').click();
 $('#file').onchange=async e=>{
   const file=e.target.files[0];if(!file)return;
@@ -112,7 +174,7 @@ function checkReminders(){
     const due=date.getTime()-event.reminderMinutes*60000;const key=`${event.id}-${date.getTime()}-${event.reminderMinutes}`;
     if(due>now||now-due>86400000||notified.includes(key))continue;
     toast(`日子提醒 · ${event.title}`);
-    if('Notification' in window&&Notification.permission==='granted'){try{new Notification('笺 · 日子提醒',{body:event.title,tag:key});}catch{/* In-page reminder remains available. */}}
+    if('Notification' in window&&Notification.permission==='granted'){try{new Notification('日缄 · 日子提醒',{body:event.title,tag:key});}catch{/* In-page reminder remains available. */}}
     notified.push(key);changed=true;
   }
   if(changed)persist({...state,notified:notified.slice(-1000)});
