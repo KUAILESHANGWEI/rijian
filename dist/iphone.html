@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>日缄 · iPhone 交互预览</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#e7e8e2;color:#303c35;font-family:Inter,"PingFang SC",sans-serif;min-height:100dvh;display:flex;align-items:center;justify-content:center;gap:54px;padding:28px;overflow:hidden}.intro{width:230px}h1{font-family:"Songti SC",serif;font-size:40px;font-weight:500;margin:0 0 18px}p{font-size:14px;line-height:1.9;color:#6b756c}a{display:inline-block;padding:12px 18px;color:white;background:#456454;border-radius:8px;text-decoration:none;font-size:14px;margin-top:8px}.device-space{width:417px;height:876px;flex-shrink:0;position:relative}.device{position:absolute;top:0;left:0;width:417px;height:876px;padding:12px;border-radius:53px;background:#202422;box-shadow:inset 0 0 0 2px #62675f,0 20px 60px #28382a26;transform-origin:top left}.screen{width:393px;height:852px;border-radius:41px;overflow:hidden;background:#f7f5ef}iframe{border:0;width:393px;height:852px;display:block}.device:before{content:'';position:absolute;left:-3px;top:180px;width:3px;height:72px;border-radius:3px 0 0 3px;background:#424841}.device:after{content:'';position:absolute;right:-3px;top:210px;width:3px;height:80px;border-radius:0 3px 3px 0;background:#424841}@media(max-width:760px){body{padding:16px;gap:16px;flex-direction:column}.intro{width:auto;text-align:center}h1{font-size:24px;margin:0}.intro p{margin:5px 0}.intro a{margin-top:0;padding:8px 14px}.intro p:last-of-type{display:none}}
+</style>
+</head>
+<body>
+<section class="intro"><h1>日缄</h1><p>iPhone 尺寸交互预览<br>393 × 852</p><p>可在手机界面中直接点击、填写和测试。</p><a href="index.html?v=12" target="_blank" rel="noopener">打开完整 App</a></section>
+<div class="device-space"><div class="device"><div class="screen"><iframe src="index.html?v=12" title="日缄 iPhone 尺寸预览" allow="autoplay"></iframe></div></div>
+<script>
+function fitDevice(){const compact=innerWidth<=760;const room=innerHeight-(compact?150:56);const scale=Math.min(1,(innerWidth-(compact?32:340))/417,room/876);const value=Math.max(.2,scale);document.querySelector('.device').style.transform=`scale(${value})`;document.querySelector('.device-space').style.width=`${417*value}px`;document.querySelector('.device-space').style.height=`${876*value}px`;}
+addEventListener('resize',fitDevice);fitDevice();
+</script>
+</body>
+</html>
