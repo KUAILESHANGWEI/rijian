@@ -1,8 +1,8 @@
-import {initializeClearPassword} from './clear-password.js?v=15';
-import {initializeTimer} from './timer.js?v=15';
-import {initializeMusic,playReminderMusic} from './music.js?v=15';
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=15'
-import { Lunar, Solar } from './vendor/lunar.js?v=15';
+import {initializeClearPassword} from './clear-password.js?v=16';
+import {initializeTimer} from './timer.js?v=16';
+import {initializeMusic,playReminderMusic} from './music.js?v=16';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=16'
+import { Lunar, Solar } from './vendor/lunar.js?v=16';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];
@@ -48,7 +48,7 @@ function render() {
   const categories=['全部日子',...labels,'已归档'];
   $('#categories').innerHTML=categories.map((name,i)=>`<button data-category="${escapeHtml(name)}" class="${name===category?'active':''}" aria-pressed="${name===category}"><span class="nav-icon"><svg viewBox="0 0 24 24">${icons[Math.min(i,4)]}</svg></span>${escapeHtml(name)}</button>`).join('');
   const selectedLabel = $('#event-form').elements.label.value;
-  $('#label-options').innerHTML=labels.map(l=>`<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
+  $('#label-options').innerHTML=labels.map(l=>`<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('') + '<option value="" data-action="add">＋ 添加分组</option>';
   if (labels.includes(selectedLabel)) $('#event-form').elements.label.value = selectedLabel;
   const active=state.events.filter(e=>category==='已归档'?e.isArchived:!e.isArchived).filter(e=>['全部日子','已归档'].includes(category)||e.label===category).map(event=>({event,date:nextOccurrence(event)}));
   const featured=active.filter(e=>e.date&&dayDifference(e.date)>=0).sort((a,b)=>a.date-b.date)[0];
@@ -77,6 +77,7 @@ function openEditor(id) {
   form.elements.entryDay.value = event?.isLunar ? event.lunarDay : date.getDate();
   form.elements.entryHour.value = date.getHours();
   form.elements.entryMinute.value = date.getMinutes();
+  $('#label-options').dataset.previousValue = form.elements.label.value;
   updateCalendarMode();
   $('#custom-repeat').hidden = form.elements.repeatType.value !== '自定义';
   $('#emoji-picker').hidden = true;
@@ -143,7 +144,13 @@ $('#new-group-form').onsubmit = event => {
     toast('分组已新增');
   } catch (error) { $('#group-error').textContent = error.message; }
 };
-$('#add-event-group').onclick = () => {
+$('#label-options').onchange = event => {
+  const select = event.target;
+  if (select.selectedOptions[0]?.dataset.action !== 'add') {
+    select.dataset.previousValue = select.value;
+    return;
+  }
+  select.value = select.dataset.previousValue || groupNames()[0] || '未分组';
   $('#add-event-group-form').reset();
   $('#add-group-error').textContent = '';
   $('#add-group-dialog').showModal();
@@ -156,6 +163,7 @@ $('#add-event-group-form').onsubmit = event => {
     if (!persist({...state,labels:[...groupNames(),name]})) return;
     render();
     $('#event-form').elements.label.value = name;
+    $('#label-options').dataset.previousValue = name;
     $('#add-group-dialog').close();
     toast('分组已添加并选中');
   } catch (error) { $('#add-group-error').textContent = error.message; }
