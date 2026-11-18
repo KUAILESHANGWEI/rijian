@@ -1,4 +1,5 @@
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=4';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=5'
+import { Lunar, Solar } from './vendor/lunar.js?v=5';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];
@@ -40,10 +41,12 @@ function countMarkup(date,featured=false) {
 }
 function render() {
   $('#today').textContent = new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'}).format(new Date());
-  const labels = groupNames();
+  const labels = [...new Set([...groupNames(),'未分组'])];
   const categories=['全部日子',...labels,'已归档'];
   $('#categories').innerHTML=categories.map((name,i)=>`<button data-category="${escapeHtml(name)}" class="${name===category?'active':''}" aria-pressed="${name===category}"><span class="nav-icon"><svg viewBox="0 0 24 24">${icons[Math.min(i,4)]}</svg></span>${escapeHtml(name)}</button>`).join('');
-  $('#label-options').innerHTML=labels.map(l=>`<option value="${escapeHtml(l)}">`).join('');
+  const selectedLabel = $('#event-form').elements.label.value;
+  $('#label-options').innerHTML=labels.map(l=>`<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
+  if (labels.includes(selectedLabel)) $('#event-form').elements.label.value = selectedLabel;
   const active=state.events.filter(e=>category==='已归档'?e.isArchived:!e.isArchived).filter(e=>['全部日子','已归档'].includes(category)||e.label===category).map(event=>({event,date:nextOccurrence(event)}));
   const featured=active.filter(e=>e.date&&dayDifference(e.date)>=0).sort((a,b)=>a.date-b.date)[0];
   $('#featured').hidden=!featured || category==='已归档';
@@ -61,10 +64,17 @@ function openEditor(id) {
   form.elements.id.value=event?.id||'';
   if (!event) form.elements.label.value = groupNames()[0] || '未分组';
   $('#editor-title').textContent=event?'编辑日子':'记一笔';
-  for(const name of ['title','emoji','label','repeatType','reminderMinutes','notes','lunarMonth','lunarDay','repeatEvery','repeatUnit']) if(event)form.elements[name].value=event[name] ?? (name==='repeatEvery'?1:'day');
+  for(const name of ['title','emoji','label','repeatType','reminderMinutes','notes','repeatEvery','repeatUnit']) if(event)form.elements[name].value=event[name] ?? (name==='repeatEvery'?1:'day');
   for(const name of ['isLunar','isLunarLeap'])form.elements[name].checked=event?.[name]||false;
-  const date=new Date();date.setHours(9,0,0,0);form.elements.date.value=dateInput(event?.targetDate||date);
-  $('#lunar-fields').hidden=!event?.isLunar;
+  const date = new Date(event?.targetDate || Date.now());
+  if (!event) date.setHours(9,0,0,0);
+  const lunar = Solar.fromDate(date).getLunar();
+  form.elements.entryYear.value = event?.isLunar ? lunar.getYear() : date.getFullYear();
+  form.elements.entryMonth.value = event?.isLunar ? event.lunarMonth : date.getMonth()+1;
+  form.elements.entryDay.value = event?.isLunar ? event.lunarDay : date.getDate();
+  form.elements.entryHour.value = date.getHours();
+  form.elements.entryMinute.value = date.getMinutes();
+  updateCalendarMode();
   $('#custom-repeat').hidden = form.elements.repeatType.value !== '自定义';
   $('#emoji-picker').hidden = true;
   $('#emoji-toggle').setAttribute('aria-expanded','false');
@@ -151,6 +161,11 @@ function renderEmojiLibrary(category = '常用') {
   $('#emoji-categories').innerHTML = Object.keys(emojiLibrary).map(name=>`<button type="button" data-emoji-category="${name}" aria-pressed="${name===category}" class="${name===category?'selected':''}">${name}</button>`).join('');
   $('#emoji-grid').innerHTML = emojiLibrary[category].map(emoji=>`<button type="button" data-emoji="${emoji}" aria-label="选择 ${emoji}">${emoji}</button>`).join('');
 }
+$('#emoji-input').onclick = () => {
+  $('#emoji-picker').hidden = false;
+  $('#emoji-toggle').setAttribute('aria-expanded','true');
+  renderEmojiLibrary();
+};
 $('#emoji-toggle').onclick = () => {
   const open = $('#emoji-picker').hidden;
   $('#emoji-picker').hidden = !open;
@@ -171,12 +186,40 @@ $('#emoji-grid').onclick = event => {
 };
 $('#add').onclick=()=>openEditor();
 $('#event-form').elements.repeatType.onchange = event => { $('#custom-repeat').hidden = event.target.value !== '自定义'; };
-$('#event-form').elements.isLunar.onchange=e=>{$('#lunar-fields').hidden=!e.target.checked;};
+function updateCalendarMode() {
+  const lunar = $('#event-form').elements.isLunar.checked;
+  $('#leap-field').hidden = !lunar;
+  $('#event-form').elements.entryDay.max = lunar ? 30 : 31;
+  $('#calendar-mode').querySelectorAll('button').forEach(button => {
+    const selected = (button.dataset.calendar === 'lunar') === lunar;
+    button.classList.toggle('selected',selected);
+    button.setAttribute('aria-pressed',String(selected));
+  });
+  $('#calendar-hint').textContent = lunar ? '按农历填写年月日，闰月请勾选。时间为 24 小时制。' : '按公历填写年月日，时间为 24 小时制。';
+}
+$('#calendar-mode').onclick = event => {
+  const button = event.target.closest('[data-calendar]');
+  if (!button) return;
+  $('#event-form').elements.isLunar.checked = button.dataset.calendar === 'lunar';
+  updateCalendarMode();
+};
 $('#event-form').onsubmit=e=>{
   e.preventDefault();const form=e.target;const raw=Object.fromEntries(new FormData(form));const existing=state.events.find(x=>x.id===raw.id);
   try {
     raw.label = validGroupName(raw.label);
-    const event=validateEvent({...existing,...raw,id:raw.id||crypto.randomUUID(),targetDate:new Date(raw.date).getTime(),isLunar:form.elements.isLunar.checked,isLunarLeap:form.elements.isLunarLeap.checked,repeatType:raw.repeatType});
+    const year = Number(raw.entryYear);
+    const month = Number(raw.entryMonth);
+    const day = Number(raw.entryDay);
+    const hour = Number(raw.entryHour);
+    const minute = Number(raw.entryMinute);
+    let target = new Date(year,month-1,day,hour,minute);
+    if (form.elements.isLunar.checked) {
+      const solar = Lunar.fromYmd(year,form.elements.isLunarLeap.checked?-month:month,day).getSolar();
+      target = new Date(solar.getYear(),solar.getMonth()-1,solar.getDay(),hour,minute);
+    } else if (target.getFullYear() !== year || target.getMonth() !== month-1 || target.getDate() !== day) {
+      throw new Error('这个公历日期不存在，请检查年月日');
+    }
+    const event=validateEvent({...existing,...raw,id:raw.id||crypto.randomUUID(),targetDate:target.getTime(),lunarMonth:month,lunarDay:Math.min(day,30),isLunar:form.elements.isLunar.checked,isLunarLeap:form.elements.isLunarLeap.checked,repeatType:raw.repeatType});
     if(event.isLunar&&!nextOccurrence(event))throw new Error('无法匹配这个农历日期，请检查公历年份、农历月日和闰月。');
     const events=existing?state.events.map(x=>x.id===event.id?event:x):[...state.events,event];
     if(persist({...state,events,labels:[...new Set([...state.labels,event.label])]})){ $('#editor').close();render();toast('日子已保存');checkReminders(); }
