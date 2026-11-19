@@ -1,0 +1,27 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.shangweiqiu.rijian'
+    compileSdk { version = release(36) { minorApiLevel = 1 } }
+    defaultConfig {
+        applicationId 'com.shangweiqiu.rijian'
+        minSdk 26
+        targetSdk 36
+        versionCode 2026111908
+        versionName '1.0'
+    }
+    buildTypes { debug { debuggable true } }
+    sourceSets.main.assets.srcDir file("$buildDir/generated/rijianAssets")
+}
+tasks.register('copyRijianWeb', Copy) {
+    inputs.file('../../shared/native.js')
+    from '../../../dist'
+    exclude 'iphone.html'
+    into layout.buildDirectory.dir('generated/rijianAssets/web')
+    filesMatching('index.html') {
+        filter { line -> line.replace('</body>', '<script src="native.js"></script></body>') }
+    }
+    doLast {
+        copy { from '../../shared/native.js'; into layout.buildDirectory.dir('generated/rijianAssets/web') }
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'copyRijianWeb' }

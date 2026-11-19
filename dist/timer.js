@@ -7,7 +7,7 @@ let notify;
 let report;
 let preparing = false;
 function save() {
-  try { sessionStorage.setItem(KEY,JSON.stringify(timer)); }
+  try { sessionStorage.setItem(KEY,JSON.stringify(timer));window.rijianNativeCommit?.(); }
   catch { report('倒计时正在运行，计时进度暂时无法保存。'); }
 }
 function remainingTime() {

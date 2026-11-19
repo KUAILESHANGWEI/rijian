@@ -27,3 +27,5 @@ button:disabled{cursor:default;opacity:.5}#music-name{overflow-wrap:anywhere}#mu
 .date-parts{grid-template-columns:repeat(3,minmax(0,1fr))}.date-parts>label{min-width:0}.date-parts input{min-width:0}.time-parts{grid-template-columns:repeat(2,minmax(0,1fr))}
 
 #emoji-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}#emoji-grid button{min-height:42px;padding:7px 0}#emoji-picker{max-height:none;overflow:visible}
+/* Use a single flat button surface in the timer on iOS WebKit. */
+#timer-form .form-actions button{-webkit-appearance:none;appearance:none;background-image:none;box-shadow:none;text-decoration:none;line-height:1.4;transform:translateZ(0)}

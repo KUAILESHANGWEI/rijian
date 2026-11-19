@@ -45,6 +45,7 @@ function updateStatus() {
   $('#music-stop').disabled = !source;
 }
 export function stopMusic() {
+  window.rijianNativeStopMusic?.();
   if (source) {
     const previous = source;
     source = null;
@@ -74,7 +75,8 @@ function startPlayback(title, loop = false) {
   playback.start();
   updateStatus();
 }
-export function playReminderMusic(title, {quiet = false} = {}) {
+export function playReminderMusic(title, {quiet = false, id = title} = {}) {
+  if (window.rijianNativePlayReminder?.(title,id)) return true;
   if (!music) return false;
   if (!enabled || context?.state !== 'running' || !buffer) {
     enabled = false;
@@ -99,7 +101,7 @@ export async function prepareMusic() {
     await Promise.race([resumed,new Promise((_,reject)=>setTimeout(()=>reject(new Error('声音播放未获授权')),3000))]);
     await musicReady;
     if (!music) return false;
-    buffer ||= await context.decodeAudioData(await music.file.arrayBuffer());
+    if (!window.rijianNativeUploadMusic) buffer ||= await context.decodeAudioData(await music.file.arrayBuffer());
     if (context.state !== 'running') throw new Error('声音播放未获授权');
     enabled = true;
     updateStatus();
@@ -120,13 +122,14 @@ export async function initializeMusic(toast) {
     loading = true;
     updateStatus();
     try {
-      if (file.size > 30 * 1024 * 1024) throw new Error('请选择 30MB 以内的音乐');
+      if (file.size > 200 * 1024 * 1024) throw new Error('请选择 200MB 以内的音乐');
       if (!database) throw new Error('音乐存储不可用，请检查存储权限');
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) throw new Error('当前设备暂不支持音乐提醒');
       context ||= new AudioContext();
-      const decoded = await context.decodeAudioData(await file.arrayBuffer());
-      if (!decoded.duration) throw new Error('音乐文件没有可播放内容');
+      let decoded;
+      if (window.rijianNativeUploadMusic) await window.rijianNativeUploadMusic(file);
+      else { decoded = await context.decodeAudioData(await file.arrayBuffer()); if (!decoded.duration) throw new Error('音乐文件没有可播放内容'); }
       const next = {name: file.name, file};
       await saveMusic(next);
       stopMusic();
@@ -140,10 +143,11 @@ export async function initializeMusic(toast) {
   $('#music-enable').onclick = async () => {
     try {
       if (!music || loading) return;
+      if (window.rijianNativePreviewMusic?.()) return;
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) throw new Error('当前设备暂不支持音乐提醒');
       context ||= new AudioContext();
-      await context.resume();
+      await Promise.race([context.resume(), new Promise((_, reject) => setTimeout(() => reject(new Error('声音启动超时，请重试')), 3000))]);
       buffer ||= await context.decodeAudioData(await music.file.arrayBuffer());
       if (context.state !== 'running') throw new Error('声音播放未获授权');
       enabled = true;

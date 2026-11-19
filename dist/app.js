@@ -30,7 +30,7 @@ let category='全部日子',tab='all',query='';
 let toastTimer;
 function toast(text) { $('#toast').textContent=text;$('#toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').style.display='none',5000); }
 function persist(next) {
-  try { localStorage.setItem(KEY,JSON.stringify(next));state=next;return true; }
+  try { localStorage.setItem(KEY,JSON.stringify(next));state=next;window.rijianNativeCommit?.();return true; }
   catch {toast('保存失败，存储空间或权限不足。请先导出备份。');return false;}
 }
 function escapeHtml(value) {return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -290,7 +290,7 @@ function checkReminders(){
       changed = true;
     }
     if (!sounded.includes(key) && (firstNotice || now-due <= 300000)) {
-      if (playReminderMusic(event.title,{quiet:!firstNotice})) {
+      if (playReminderMusic(event.title,{quiet:!firstNotice,id:key})) {
         sounded.push(key);
         changed = true;
       }
@@ -306,7 +306,7 @@ initializeMusic(toast);
 document.addEventListener('click',() => { void prepareMusic(); },{once:true,capture:true});
 initializeTimer(message => {
   toast(message);
-  playReminderMusic('倒计时结束');
+  playReminderMusic('倒计时结束',{id:'timer-quick'});
   if ('Notification' in window && Notification.permission === 'granted') {
     try { new Notification('日缄 · 倒计时结束',{body:'时间到！'}); } catch { /* The in-page reminder is always shown. */ }
   }

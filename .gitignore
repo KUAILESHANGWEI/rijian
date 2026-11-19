@@ -1,2 +1,10 @@
 .playwright-cli/
 .DS_Store
+native/android/.gradle/
+native/android/.kotlin/
+native/android/local.properties
+native/android/**/build/
+native/ios/Web/
+exports/
+
+.openai/

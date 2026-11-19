@@ -1,0 +1,24 @@
+// !$*UTF8*$!
+{archiveVersion=1;classes={};objectVersion=56;objects={
+51309554C1CF4D3BA5D7E2BC={isa=PBXFileReference;lastKnownFileType=sourcecode.swift;path=NativeServices.swift;sourceTree="<group>";};
+5ED778D8C3204006B0E7D0E8={isa=PBXBuildFile;fileRef=51309554C1CF4D3BA5D7E2BC;};
+B007224C2D1F450AAE5EC5A8 = {isa=PBXFileReference;lastKnownFileType=sourcecode.swift;path=RijianApp.swift;sourceTree="<group>";};
+5748D1A1FF7E4159A7331C09 = {isa=PBXFileReference;lastKnownFileType=folder;path=Web;sourceTree="<group>";};
+F5E76F8A4DD443539A4C83C5 = {isa=PBXFileReference;lastKnownFileType=folder.assetcatalog;path=Assets.xcassets;sourceTree="<group>";};
+5A2EC369DB7A41C485D4F2F8 = {isa=PBXFileReference;explicitFileType=wrapper.application;path=Rijian.app;sourceTree=BUILT_PRODUCTS_DIR;};
+44565302771D47D4BA36A847 = {isa=PBXBuildFile;fileRef=B007224C2D1F450AAE5EC5A8;};
+A2453BF8A4AE4D29AA6343DB = {isa=PBXBuildFile;fileRef=5748D1A1FF7E4159A7331C09;};
+45ADE4E1AFA24575A2D76F56 = {isa=PBXBuildFile;fileRef=F5E76F8A4DD443539A4C83C5;};
+49862D7BC67C47CEA6AED47C = {isa=PBXSourcesBuildPhase;buildActionMask=2147483647;files=(5ED778D8C3204006B0E7D0E8,44565302771D47D4BA36A847,);runOnlyForDeploymentPostprocessing=0;};
+3CC4B679A2DB45A4BBD21F0C = {isa=PBXResourcesBuildPhase;buildActionMask=2147483647;files=(A2453BF8A4AE4D29AA6343DB,45ADE4E1AFA24575A2D76F56,);runOnlyForDeploymentPostprocessing=0;};
+2F9EEEA7C7EE4A92A11AB753 = {isa=XCBuildConfiguration;name=Debug;buildSettings={PRODUCT_NAME=Rijian;PRODUCT_BUNDLE_IDENTIFIER=com.shangweiqiu.rijian;DEVELOPMENT_TEAM=H79844LYVD;CODE_SIGN_STYLE=Automatic;SDKROOT=iphoneos;SUPPORTED_PLATFORMS="iphoneos iphonesimulator";IPHONEOS_DEPLOYMENT_TARGET=17.0;TARGETED_DEVICE_FAMILY="1,2";SWIFT_VERSION=5.0;INFOPLIST_FILE=Info.plist;ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon;CLANG_ENABLE_MODULES=YES;ENABLE_USER_SCRIPT_SANDBOXING=YES;SWIFT_OPTIMIZATION_LEVEL="-Onone";};};
+85DE6898D35745C382EC3244 = {isa=XCBuildConfiguration;name=Release;buildSettings={PRODUCT_NAME=Rijian;PRODUCT_BUNDLE_IDENTIFIER=com.shangweiqiu.rijian;DEVELOPMENT_TEAM=H79844LYVD;CODE_SIGN_STYLE=Automatic;SDKROOT=iphoneos;SUPPORTED_PLATFORMS="iphoneos iphonesimulator";IPHONEOS_DEPLOYMENT_TARGET=17.0;TARGETED_DEVICE_FAMILY="1,2";SWIFT_VERSION=5.0;INFOPLIST_FILE=Info.plist;ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon;CLANG_ENABLE_MODULES=YES;ENABLE_USER_SCRIPT_SANDBOXING=YES;SWIFT_OPTIMIZATION_LEVEL="-O";};};
+0A9470C5EB5B4586ABB98DAA = {isa=XCBuildConfiguration;name=Debug;buildSettings={};};
+A3D8457156CB4160A2C9D415 = {isa=XCBuildConfiguration;name=Release;buildSettings={};};
+51F7B622E9F14224BE72870D = {isa=XCConfigurationList;buildConfigurations=(2F9EEEA7C7EE4A92A11AB753,85DE6898D35745C382EC3244,);defaultConfigurationIsVisible=0;defaultConfigurationName=Release;};
+5056415ED2FD483897CC7D10 = {isa=XCConfigurationList;buildConfigurations=(0A9470C5EB5B4586ABB98DAA,A3D8457156CB4160A2C9D415,);defaultConfigurationIsVisible=0;defaultConfigurationName=Release;};
+C71BB2B785D54728B8356992 = {isa=PBXNativeTarget;name=Rijian;productName=Rijian;productReference=5A2EC369DB7A41C485D4F2F8;productType="com.apple.product-type.application";buildConfigurationList=51F7B622E9F14224BE72870D;buildPhases=(49862D7BC67C47CEA6AED47C,3CC4B679A2DB45A4BBD21F0C,);buildRules=();dependencies=();};
+9AF4250FCCB0401396466C20 = {isa=PBXGroup;name=Products;sourceTree="<group>";children=(5A2EC369DB7A41C485D4F2F8,);};
+9694439FA5BC407BA0F48C4B = {isa=PBXGroup;sourceTree="<group>";children=(51309554C1CF4D3BA5D7E2BC,B007224C2D1F450AAE5EC5A8,5748D1A1FF7E4159A7331C09,F5E76F8A4DD443539A4C83C5,9AF4250FCCB0401396466C20,);};
+8DD13795BA8849BABC60F738 = {isa=PBXProject;attributes={LastUpgradeCheck=2700;};buildConfigurationList=5056415ED2FD483897CC7D10;compatibilityVersion="Xcode 14.0";developmentRegion="zh-Hans";knownRegions=("zh-Hans",en,Base,);mainGroup=9694439FA5BC407BA0F48C4B;productRefGroup=9AF4250FCCB0401396466C20;targets=(C71BB2B785D54728B8356992,);};
+};rootObject=8DD13795BA8849BABC60F738;}
