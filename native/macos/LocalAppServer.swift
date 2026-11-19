@@ -16,7 +16,7 @@ final class LocalAppServer {
     }
     func start() {
         listener.stateUpdateHandler = { [weak self] state in
-            
+
             switch state {
             case .ready: DispatchQueue.main.async { self?.onReady?() }
             case .failed(let error): DispatchQueue.main.async { self?.onFailure?(error.localizedDescription) }
@@ -49,7 +49,7 @@ final class LocalAppServer {
         }
     }
     private func respond(_ connection: NWConnection, request: Data) {
-        
+
         let line = String(decoding: request, as: UTF8.self).components(separatedBy: "\r\n").first ?? ""
         let parts = line.split(separator: " ")
         guard parts.count >= 2, parts[0] == "GET" else { connection.cancel(); return }
@@ -66,4 +66,3 @@ final class LocalAppServer {
     }
     deinit { listener.cancel(); connections.values.forEach { $0.cancel() } }
 }
-
