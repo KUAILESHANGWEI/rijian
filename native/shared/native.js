@@ -4,6 +4,7 @@
   let revision = 0;
   let lastSnapshot = '';
   const {nextOccurrence} = await import('./dates.js');
+  const {alarmRequests} = await import('./alarm-schedule.js');
   function send(message) {
     if (isApple) window.webkit.messageHandlers.rijian.postMessage(message);
     else if (window.RijianAndroid) window.RijianAndroid.send(JSON.stringify(message));
@@ -42,15 +43,16 @@
     try {
       const raw = localStorage.getItem('jian-data-v1');
       const timer = sessionStorage.getItem('rijian-quick-timer');
-      if (!raw || (!force && raw + timer === lastSnapshot)) return;
-      lastSnapshot = raw + timer;
+      if (!raw || (!force && raw + timer + new Date().toDateString() === lastSnapshot)) return;
+      lastSnapshot = raw + timer + new Date().toDateString();
       const state = JSON.parse(raw);
       const parsedTimer = timer ? JSON.parse(timer) : null;
-      const requests = reminders(state.events);
+      const requests = [...reminders(state.events),...alarmRequests(state.alarms)].sort((a,b)=>a.time-b.time).slice(0,60);
       if (parsedTimer?.status === 'running' && parsedTimer.deadline > Date.now()) requests.unshift({key:'timer-quick',title:'倒计时结束',time:parsedTimer.deadline});
       send({action:'sync',snapshot:JSON.stringify({version:1,exportedAt:new Date().toISOString(),...state}),requests});
     } catch (error) { console.error('Native reminder sync failed',error.message); }
   }
+  window.rijianRequestAlarmPermission = () => send({action:'requestReminders'});
   window.rijianNativeCommit = () => queueMicrotask(()=>sync());
   window.rijianNativeStatus = status => {
     nativeStatus = status;

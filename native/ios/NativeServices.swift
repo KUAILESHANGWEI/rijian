@@ -14,6 +14,9 @@ struct ReminderRequest: Codable, Equatable {
     let key: String
     let title: String
     let time: Double
+    let hour: Int?
+    let minute: Int?
+    let weekdays: [Int]?
     var date: Date { Date(timeIntervalSince1970: time / 1000) }
     var id: UUID {
         let bytes = Array(SHA256.hash(data: Data(key.utf8)).prefix(16))
@@ -28,6 +31,7 @@ struct RijianAlarmMetadata: AlarmMetadata { let key: String }
 final class NativeReminders: NSObject, UNUserNotificationCenterDelegate {
     private var requests: [ReminderRequest] = []
     private var generation = 0
+    private var scheduling = false
     private var player: AVAudioPlayer?
     private var defaultTone: Timer?
     private var playingKey: String?
@@ -100,9 +104,12 @@ final class NativeReminders: NSObject, UNUserNotificationCenterDelegate {
     }
     private func reschedule() {
         generation += 1
+        guard !scheduling else { return }
+        scheduling = true
         let revision = generation
         let desired = requests.filter { $0.date > Date() }
         Task {
+            defer { scheduling = false; if revision != generation { reschedule() } }
             let center = UNUserNotificationCenter.current()
             let pending = await center.pendingNotificationRequests()
             center.removePendingNotificationRequests(withIdentifiers: pending.filter { $0.identifier.hasPrefix("rijian-") }.map(\.identifier))
@@ -118,7 +125,12 @@ final class NativeReminders: NSObject, UNUserNotificationCenterDelegate {
                     let attributes = AlarmAttributes(presentation: AlarmPresentation(alert: alert), metadata: RijianAlarmMetadata(key: item.key), tintColor: Color(red: 0.27,green: 0.39,blue: 0.33))
                     let sound: AlertConfiguration.AlertSound = FileManager.default.fileExists(atPath: alarmMusicURL.path) ? .named(alarmMusicURL.lastPathComponent) : (FileManager.default.fileExists(atPath: soundURL.path) ? .named(soundURL.lastPathComponent) : .default)
                     do {
-                        _ = try await AlarmManager.shared.schedule(id: item.id, configuration: .alarm(schedule: .fixed(item.date), attributes: attributes, sound: sound))
+                        let schedule: Alarm.Schedule
+                        if let days=item.weekdays,!days.isEmpty,let hour=item.hour,let minute=item.minute {
+                            let weekdays: [Locale.Weekday] = [.sunday,.monday,.tuesday,.wednesday,.thursday,.friday,.saturday]
+                            schedule = .relative(.init(time:.init(hour:hour,minute:minute),repeats:.weekly(days.filter { (0...6).contains($0) }.map { weekdays[$0] })))
+                        } else { schedule = .fixed(item.date) }
+                        _ = try await AlarmManager.shared.schedule(id:item.id,configuration:.alarm(schedule:schedule,attributes:attributes,sound:sound))
                         if revision != generation { try? AlarmManager.shared.cancel(id: item.id); return }
                     } catch {
                         status = "部分提醒改用系统通知：\(error.localizedDescription)"
@@ -141,9 +153,18 @@ final class NativeReminders: NSObject, UNUserNotificationCenterDelegate {
         content.body = item.title
         content.userInfo = ["key":item.key]
         content.sound = FileManager.default.fileExists(atPath: soundURL.path) ? UNNotificationSound(named: UNNotificationSoundName(soundURL.lastPathComponent)) : .default
-        let request = UNNotificationRequest(identifier: "rijian-\(generation)-\(item.id)", content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1,item.date.timeIntervalSinceNow), repeats: false))
-        try await UNUserNotificationCenter.current().add(request)
+        if let days=item.weekdays,!days.isEmpty,let hour=item.hour,let minute=item.minute {
+            for day in days {
+                var date=DateComponents();date.weekday=day+1;date.hour=hour;date.minute=minute
+                let request=UNNotificationRequest(identifier:"rijian-\(item.id)-\(day)",content:content,trigger:UNCalendarNotificationTrigger(dateMatching:date,repeats:true))
+                try await UNUserNotificationCenter.current().add(request)
+            }
+        } else {
+            let request=UNNotificationRequest(identifier:"rijian-\(item.id)",content:content,trigger:UNTimeIntervalNotificationTrigger(timeInterval:max(1,item.date.timeIntervalSinceNow),repeats:false))
+            try await UNUserNotificationCenter.current().add(request)
+        }
     }
+
     func installMusic(_ data: Data, name: String) throws {
         guard data.count <= 200 * 1024 * 1024 else { throw CocoaError(.fileReadTooLarge) }
         let inputURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension((name as NSString).pathExtension)
@@ -230,8 +251,15 @@ final class NativeReminders: NSObject, UNUserNotificationCenterDelegate {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         onChange?()
     }
-    private func wasFired(_ key: String) -> Bool { (UserDefaults.standard.stringArray(forKey: "fired-reminders") ?? []).contains(key) }
-    private func markFired(_ key: String) {
+    private func occurrenceKey(_ key:String)->String {
+        guard key.hasPrefix("alarm-") else { return key }
+        let date=Calendar.current.startOfDay(for:Date()).timeIntervalSince1970
+        let item=requests.first { $0.key == key }
+        return "\(key)-\(Int(date))-\(item?.hour ?? -1)-\(item?.minute ?? -1)"
+    }
+    private func wasFired(_ key: String) -> Bool { (UserDefaults.standard.stringArray(forKey: "fired-reminders") ?? []).contains(occurrenceKey(key)) }
+    private func markFired(_ original: String) {
+        let key=occurrenceKey(original)
         var keys = UserDefaults.standard.stringArray(forKey: "fired-reminders") ?? []
         if !keys.contains(key) { keys.append(key) }
         UserDefaults.standard.set(Array(keys.suffix(1000)), forKey: "fired-reminders")

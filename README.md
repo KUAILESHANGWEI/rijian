@@ -14,7 +14,7 @@
 | iPhone | iOS 17+；IPA 需要使用自己的 Apple 开发者身份或 AltStore 重新签名。iOS 26+ 使用 AlarmKit 系统闹钟。不是 App Store 分发包。 |
 | Android | Android 8.0+；下载 APK 安装。当前为开发测试签名，更新时覆盖安装，保留原有数据。 |
 
-当前 iPhone 构建为 2026111909，Android 和 Mac 为 2026111908，显示版本均为 1.0。iPhone 锁屏完整音乐播放及整首结束后循环已在用户 iPhone / iOS 27.3 上验证；其他系统版本需分别验证。
+当前三端构建均为 2026112201，显示版本均为 1.0。iPhone 锁屏完整音乐播放及整首结束后循环已在用户 iPhone / iOS 27.3 上验证；其他系统版本需分别验证。
 
 ## 功能
 
@@ -46,3 +46,9 @@ Android：安装 JDK 17、Android SDK 36.1、Build Tools 36.1.0 与 Gradle 9.3.1
 共享界面本机预览：`python3 -m http.server 8765 --directory dist`，打开 `http://127.0.0.1:8765`。各安装版本数据独立，跨设备通过 JSON 备份迁移。
 
 农历组件使用 lunar-javascript，许可证保留在 `dist/vendor/LICENSE-lunar-javascript`。
+
+## 独立闹钟（2026-11-22）
+
+“闹钟功能”支持添加多个闹钟、编辑时间与名称、一次性/每天/工作日/自选星期、单独启停和删除。闹钟随 JSON 备份迁移，旧备份也可继续导入。到时沿用所选完整提醒音乐，整首播放结束后循环至手动停止。
+
+iOS 26+ 使用 AlarmKit 系统星期重复，旧系统使用重复日历通知；Android 用原生准时提醒并在每次触发、重启或时区调整后安排下一次；Mac 在 App 运行时维护重复时间。首次使用需允许相应系统提醒权限。版本 1.0（2026112201）。

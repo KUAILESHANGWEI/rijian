@@ -4,7 +4,7 @@ import UserNotifications
 import AVFoundation
 import UniformTypeIdentifiers
 
-struct Reminder: Codable { let key: String; let title: String; let time: Double }
+struct Reminder: Codable { let key: String; let title: String; var time: Double; let hour: Int?; let minute: Int?; let weekdays: [Int]? }
 @main final class RijianMac: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate {
     var window: NSWindow!
     var web: WKWebView!
@@ -81,15 +81,32 @@ struct Reminder: Codable { let key: String; let title: String; let time: Double 
     }
     func checkReminders() {
         let now=Date().timeIntervalSince1970*1000
-        for request in requests where request.time <= now && request.time > now-86400000 && !fired.contains(request.key) {
+        for request in requests where request.time <= now && request.time > now-86400000 && !fired.contains(occurrenceKey(request.key)) {
             play(title:request.title,key:request.key)
             let content=UNMutableNotificationContent(); content.title="日缄"; content.body=request.title
             if player?.isPlaying != true { content.sound = .default }
             UNUserNotificationCenter.current().add(UNNotificationRequest(identifier:request.key,content:content,trigger:nil))
         }
+        var advanced = false
+        for index in requests.indices where requests[index].time <= now {
+            let item=requests[index]
+            guard let days=item.weekdays,!days.isEmpty,let hour=item.hour,let minute=item.minute else { continue }
+            for offset in 0...7 {
+                let day=Calendar.current.date(byAdding:.day,value:offset,to:Date())!
+                let date=Calendar.current.date(bySettingHour:hour,minute:minute,second:0,of:day)!
+                if date>Date() && days.contains(Calendar.current.component(.weekday,from:date)-1) { requests[index].time=date.timeIntervalSince1970*1000;advanced=true;break }
+            }
+        }
+        if advanced { defaults.set(try? JSONEncoder().encode(requests),forKey:"requests") }
         backup(force:false)
     }
+    func occurrenceKey(_ key:String)->String {
+        guard key.hasPrefix("alarm-") else { return key }
+        let item=requests.first { $0.key == key }
+        return "\(key)-\(Int(Calendar.current.startOfDay(for:Date()).timeIntervalSince1970))-\(item?.hour ?? -1)-\(item?.minute ?? -1)"
+    }
     func play(title:String,key:String,preview:Bool=false) {
+        let key=occurrenceKey(key)
         if !preview && fired.contains(key) { return }
         if !preview { fired.insert(key); defaults.set(Array(fired.suffix(1000)),forKey:"fired") }
         stopMusic()

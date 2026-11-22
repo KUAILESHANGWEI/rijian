@@ -6,7 +6,7 @@ android {
         applicationId 'com.shangweiqiu.rijian'
         minSdk 26
         targetSdk 36
-        versionCode 2026111908
+        versionCode 2026112201
         versionName '1.0'
     }
     buildTypes { debug { debuggable true } }

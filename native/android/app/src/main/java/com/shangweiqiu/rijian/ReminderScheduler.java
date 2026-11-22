@@ -49,10 +49,36 @@ public final class ReminderScheduler {
         } catch(Exception error) { throw new IllegalStateException("系统提醒保存失败",error); }
     }
     public static void restore(Context context) {
-        try { sync(context,new JSONArray(preferences(context).getString("requests","[]"))); }
+        try {
+            JSONArray items=new JSONArray(preferences(context).getString("requests","[]"));
+            for(int n=0;n<items.length();n++){JSONObject item=items.getJSONObject(n);if(item.optString("key").startsWith("alarm-"))advance(context,item.optString("key"));}
+            sync(context,new JSONArray(preferences(context).getString("requests","[]")));
+        }
         catch(Exception ignored) {}
     }
+    public static void advance(Context context,String key) {
+        if(key==null||!key.startsWith("alarm-"))return;
+        try {
+            JSONArray items=new JSONArray(preferences(context).getString("requests","[]"));
+            for(int n=0;n<items.length();n++){
+                JSONObject item=items.getJSONObject(n);if(!item.optString("key").startsWith("alarm-"))continue;
+                JSONArray days=item.optJSONArray("weekdays");if(days==null||days.length()==0)continue;
+                long now=System.currentTimeMillis();
+                for(int offset=0;offset<=7;offset++){
+                    java.util.Calendar date=java.util.Calendar.getInstance();date.add(java.util.Calendar.DATE,offset);
+                    date.set(java.util.Calendar.HOUR_OF_DAY,item.getInt("hour"));date.set(java.util.Calendar.MINUTE,item.getInt("minute"));date.set(java.util.Calendar.SECOND,0);date.set(java.util.Calendar.MILLISECOND,0);
+                    boolean matches=false;for(int d=0;d<days.length();d++)if(days.getInt(d)==date.get(java.util.Calendar.DAY_OF_WEEK)-1)matches=true;
+                    if(matches&&date.getTimeInMillis()>now){item.put("time",date.getTimeInMillis());break;}
+                }
+            }
+            sync(context,items);
+        }catch(Exception ignored){}
+    }
     public static synchronized boolean claim(Context context,String key) {
+        if(key!=null&&key.startsWith("alarm-")){
+            String clock="";try{JSONArray items=new JSONArray(preferences(context).getString("requests","[]"));for(int n=0;n<items.length();n++){JSONObject item=items.getJSONObject(n);if(key.equals(item.optString("key")))clock="-"+item.optInt("hour")+"-"+item.optInt("minute");}}catch(Exception ignored){}
+            java.util.Calendar day=java.util.Calendar.getInstance();key=key+"-"+day.get(java.util.Calendar.YEAR)+"-"+day.get(java.util.Calendar.DAY_OF_YEAR)+clock;
+        }
         Set<String> keys=new HashSet<>(preferences(context).getStringSet("fired",Collections.emptySet()));
         if(keys.contains(key))return false;
         if(keys.size()>1000)keys.clear();

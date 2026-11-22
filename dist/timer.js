@@ -1,4 +1,4 @@
-import {prepareMusic} from './music.js?v=19';
+import {prepareMusic} from './music.js?v=20';
 const KEY = 'rijian-quick-timer';
 const $ = selector => document.querySelector(selector);
 const emptyTimer = {status:'idle',duration:300000,remaining:300000,deadline:null};

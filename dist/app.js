@@ -1,8 +1,10 @@
-import {initializeClearPassword} from './clear-password.js?v=19';
-import {initializeTimer} from './timer.js?v=19';
-import {initializeMusic,playReminderMusic,prepareMusic} from './music.js?v=19';
-import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=19'
-import { Lunar, Solar } from './vendor/lunar.js?v=19';
+import {initializeAlarms} from './alarms.js?v=20';
+import {validateAlarm} from './alarm-schedule.js?v=20';
+import {initializeClearPassword} from './clear-password.js?v=20';
+import {initializeTimer} from './timer.js?v=20';
+import {initializeMusic,playReminderMusic,prepareMusic} from './music.js?v=20';
+import {dateInput,dayDifference,nextOccurrence,validateEvent} from './dates.js?v=20'
+import { Lunar, Solar } from './vendor/lunar.js?v=20';
 const $ = s => document.querySelector(s);
 const KEY = 'jian-data-v1';
 const defaultLabels = ['生日','纪念日','工作'];
@@ -14,7 +16,7 @@ try {
   if (saved) {
     const parsed = JSON.parse(saved);
     if (!Array.isArray(parsed.events) || !Array.isArray(parsed.labels)) throw new Error('数据格式异常');
-    state = {...parsed, events:parsed.events.map(validateEvent)};
+    state = {...parsed, events:parsed.events.map(validateEvent),alarms:(parsed.alarms||[]).map(validateAlarm)};
   } else {
     const sample = [['冬日旅行','🌿',32,'纪念日'],['妈妈的生日','🎂',16,'生日'],['结婚纪念日','❤️',28,'纪念日'],['新年','🎇',43,'纪念日'],['阅读计划','📖',12,'工作']];
     state = {events:sample.map(([title,emoji,days,label]) => {
@@ -30,7 +32,7 @@ let category='全部日子',tab='all',query='';
 let toastTimer;
 function toast(text) { $('#toast').textContent=text;$('#toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').style.display='none',5000); }
 function persist(next) {
-  try { localStorage.setItem(KEY,JSON.stringify(next));state=next;window.rijianNativeCommit?.();return true; }
+  try { localStorage.setItem(KEY,JSON.stringify(next));state=next;window.rijianNativeCommit?.();window.dispatchEvent(new Event("rijian-data-change"));return true; }
   catch {toast('保存失败，存储空间或权限不足。请先导出备份。');return false;}
 }
 function escapeHtml(value) {return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -254,16 +256,19 @@ $('#file').onchange=async e=>{
     if(file.size>10*1024*1024)throw new Error('备份文件不能超过 10MB');
     const data=JSON.parse(await file.text());
     if(!Array.isArray(data.events)||!Array.isArray(data.labels)||data.events.length>10000||!data.labels.every(l=>typeof l==='string'&&l.length<=30))throw new Error('备份格式无效');
+    if(data.alarms!==undefined&&(!Array.isArray(data.alarms)||data.alarms.length>1000))throw new Error('闹钟备份格式无效');
+    const alarms=[...(state.alarms||[])];
+    for(const alarm of (data.alarms||[]).map(validateAlarm)){if(!alarms.some(a=>JSON.stringify({...a,id:null})===JSON.stringify({...alarm,id:null}))){if(alarms.some(a=>a.id===alarm.id))alarm.id=crypto.randomUUID();alarms.push(alarm);}}
     const incoming=data.events.map(validateEvent);const events=[...state.events];
     const signature=e=>JSON.stringify([e.title,e.targetDate,e.label,e.emoji,e.repeatType,e.isLunar,e.lunarMonth,e.lunarDay,e.isLunarLeap,e.notes,e.attachments,e.reminderMinutes,e.isArchived,e.repeatEvery,e.repeatUnit]);
     const known=new Set(events.map(signature));
     for(const event of incoming){if(known.has(signature(event)))continue;known.add(signature(event));if(events.some(x=>x.id===event.id))event.id=crypto.randomUUID();events.push(event);}
     const added=events.length-state.events.length;
-    if(persist({...state,events,labels:[...new Set([...state.labels,...data.labels])]})){render();toast(`已导入 ${added} 个日子`);}
+    if(persist({...state,events,alarms,labels:[...new Set([...state.labels,...data.labels])]})){render();toast(`已导入 ${added} 个日子`);}
   }catch(error){toast(`导入失败，${error.message}`);}finally{e.target.value='';}
 };
 initializeClearPassword(() => {
-  if (!persist({events:[],labels:defaultLabels,notified:[]})) return false;
+  if (!persist({...state,events:[],labels:defaultLabels,notified:[]})) return false;
   category='全部日子';
   render();
   return true;
@@ -303,6 +308,7 @@ let currentDay=new Date().toDateString();
 setInterval(()=>{if(new Date().toDateString()!==currentDay){currentDay=new Date().toDateString();render();}checkReminders();},1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();checkReminders();}});
 initializeMusic(toast);
+initializeAlarms(()=>state,persist,toast);
 document.addEventListener('click',() => { void prepareMusic(); },{once:true,capture:true});
 initializeTimer(message => {
   toast(message);

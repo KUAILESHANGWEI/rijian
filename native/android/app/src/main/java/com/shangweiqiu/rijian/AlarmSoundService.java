@@ -26,6 +26,7 @@ public final class AlarmSoundService extends Service {
             focus=new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT).setAudioAttributes(attributes).setOnAudioFocusChangeListener(change->{if(change==AudioManager.AUDIOFOCUS_LOSS)stopSelf();}).build();
             getSystemService(AudioManager.class).requestAudioFocus(focus);
             player=new MediaPlayer();
+            player.setWakeMode(this,PowerManager.PARTIAL_WAKE_LOCK);
             player.setAudioAttributes(attributes);
             File music=new File(getFilesDir(),"reminder-music");
             if(music.isFile())player.setDataSource(music.getAbsolutePath());
