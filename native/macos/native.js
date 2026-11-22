@@ -4,6 +4,8 @@
   let nativeStatus = {};
   let revision = 0;
   let lastSnapshot = '';
+  window.rijianCloudReceive = snapshot => { if(window.rijianApplyCloud)window.rijianApplyCloud(snapshot);else window.rijianPendingCloud=snapshot; };
+  window.rijianCloudStatus = status => { const target=document.querySelector('#icloud-sync-status');if(target)target.textContent=status; };
   const {nextOccurrence} = await import('./dates.js');
   const {alarmRequests} = await import('./alarm-schedule.js');
   function send(message) {
@@ -50,7 +52,7 @@
       const parsedTimer = timer ? JSON.parse(timer) : null;
       const requests = [...reminders(state.events),...alarmRequests(state.alarms)].sort((a,b)=>a.time-b.time).slice(0,60);
       if (parsedTimer?.status === 'running' && parsedTimer.deadline > Date.now()) requests.unshift({key:'timer-quick',title:'倒计时结束',time:parsedTimer.deadline});
-      send({action:'sync',snapshot:JSON.stringify({version:1,exportedAt:new Date().toISOString(),...state}),requests});
+      send({action:'sync',snapshot:JSON.stringify({version:1,exportedAt:new Date().toISOString(),...state}),cloudBase:JSON.parse(localStorage.getItem('rijian-cloud-base-v1')||'null'),requests});
     } catch (error) { console.error('Native reminder sync failed',error.message); }
   }
   window.rijianRequestAlarmPermission = () => send({action:'requestReminders'});
@@ -88,6 +90,9 @@
   const section = document.createElement('section');
   section.className='preferences-section';
   section.innerHTML = isApple ? '<h3>iCloud 自动备份</h3><label class="check"><input id="cloud-backup-enabled" type="checkbox">定期自动备份</label><div class="settings-actions"><button id="cloud-backup-folder">选择 iCloud 目录</button><button id="cloud-backup-now">立即备份</button><select id="cloud-backup-interval" aria-label="自动备份周期"><option value="1">每天</option><option value="7">每周</option><option value="30">每30天</option></select></div><p id="cloud-backup-status"></p><p>后台执行由系统安排，打开 App 会补做逾期备份。音乐文件请单独保存。</p>' : '<h3>后台提醒</h3><button id="exact-alarm-settings">允许准时提醒</button><p>请开启通知与准时提醒权限，以便后台响铃。</p>';
+  if(isApple && window.rijianCloudAvailable){
+    const cloud=document.createElement('section');cloud.className='preferences-section';cloud.innerHTML='<h3>iCloud 自动同步</h3><p id="icloud-sync-status">正在连接 iCloud…</p><p>同一 iCloud 账户的 Mac 与 iPhone 自动同步日子、分组、闹钟和提醒音乐。密码、响铃记录和临时倒计时保留在本机。</p><button id="icloud-sync-refresh">检查同步</button>';settings.prepend(cloud);document.querySelector('#icloud-sync-refresh').onclick=()=>send({action:'cloudRefresh'});
+  }
   settings.append(section);
   if (isMac) section.querySelector('p:last-child').textContent = 'App 运行时定期备份；再次打开会补做逾期备份。音乐文件请单独保存。';
   document.querySelector('#permission').textContent = '开启后台提醒';
@@ -121,7 +126,8 @@
     transfers.delete(id);clearTimeout(pending.timeout);
     error ? pending.reject(new Error(error)) : pending.resolve();
   };
-  window.rijianNativeUploadMusic = async file => {
+  window.rijianNativeUploadMusic = async (file,{migration=false}={}) => {
+    if(migration&&window.rijianCloudMusicDecision)return;
     if(file.size>200*1024*1024)throw new Error('请选择 200MB 以内的音乐');
     const transfer=String(Date.now())+'-'+(++transferSequence);
     for(let offset=0;offset<file.size;offset+=1024*1024){
@@ -131,7 +137,7 @@
       await new Promise((resolve,reject)=>{
         const timeout=setTimeout(()=>{transfers.delete(callback);reject(new Error('音乐保存超时，请重试'));},120000);
         transfers.set(callback,{resolve,reject,timeout});
-        send({action:'musicChunk',transfer,callback,name:file.name,offset,total:file.size,final:offset+bytes.length>=file.size,data:btoa(binary)});
+        send({action:'musicChunk',transfer,callback,name:file.name,migration,offset,total:file.size,final:offset+bytes.length>=file.size,data:btoa(binary)});
       });
     }
   };
@@ -139,7 +145,7 @@
   try {
     const database=await new Promise((resolve,reject)=>{const request=indexedDB.open('rijian-audio',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);request.onupgradeneeded=()=>request.result.createObjectStore('settings');});
     const saved=await new Promise((resolve,reject)=>{const request=database.transaction('settings').objectStore('settings').get('music');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
-    if(saved?.file) await window.rijianNativeUploadMusic(saved.file);
+    if(saved?.file) await window.rijianNativeUploadMusic(saved.file,{migration:true});
     database.close();
   } catch { /* Music can also be uploaded again from settings. */ }
   sync(true);send({action:'status'});

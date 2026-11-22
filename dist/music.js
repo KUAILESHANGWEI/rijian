@@ -1,6 +1,7 @@
 const $ = selector => document.querySelector(selector);
 let database;
 let music;
+let cloudMusic;
 let context;
 let buffer;
 let source;
@@ -37,9 +38,9 @@ function saveMusic(value) {
   });
 }
 function updateStatus() {
-  $('#music-name').textContent = music ? music.name : '尚未上传音乐';
-  $('#music-enable').disabled = loading || !music;
-  $('#music-remove').disabled = loading || !music;
+  $('#music-name').textContent = cloudMusic?.name || (music ? music.name : '尚未上传音乐');
+  $('#music-enable').disabled = loading || (!music && !cloudMusic);
+  $('#music-remove').disabled = loading || (!music && !cloudMusic);
   $('#music-upload').disabled = loading;
   $('#music-state').textContent = enabled ? '声音已启用，提醒音乐循环播放，点击“停止播放”结束。' : '操作 App 或保存提醒时自动准备声音。';
   $('#music-stop').disabled = !source;
@@ -114,6 +115,12 @@ export async function prepareMusic() {
   }
 }
 export async function initializeMusic(toast) {
+  window.rijianCloudMusicChanged = value => {
+    window.rijianCloudMusicDecision=true;
+    cloudMusic=value;
+    if(!value){music=null;buffer=null;enabled=false;void saveMusic(null).catch(()=>{});}
+    updateStatus();
+  };
   report = toast;
   $('#music-upload').onclick = () => $('#music-file').click();
   $('#music-file').onchange = async event => {
@@ -134,6 +141,7 @@ export async function initializeMusic(toast) {
       await saveMusic(next);
       stopMusic();
       music = next;
+      cloudMusic=null;
       buffer = decoded;
       enabled = false;
       report('音乐已保存，请点击“启用声音并试听”。');
@@ -142,7 +150,7 @@ export async function initializeMusic(toast) {
   };
   $('#music-enable').onclick = async () => {
     try {
-      if (!music || loading) return;
+      if ((!music && !cloudMusic) || loading) return;
       if (window.rijianNativePreviewMusic?.()) return;
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) throw new Error('当前设备暂不支持音乐提醒');
@@ -163,6 +171,7 @@ export async function initializeMusic(toast) {
       await saveMusic(null);
       stopMusic();
       music = null;
+      cloudMusic=null;
       buffer = null;
       enabled = false;
       report('提醒音乐已移除');

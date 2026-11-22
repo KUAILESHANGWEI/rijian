@@ -1,3 +1,4 @@
+import {cloudSnapshot,mergeCloudSnapshots,sameCloudValue} from './cloud-merge.js?v=21';
 import {initializeAlarms} from './alarms.js?v=20';
 import {validateAlarm} from './alarm-schedule.js?v=20';
 import {initializeClearPassword} from './clear-password.js?v=20';
@@ -28,6 +29,20 @@ try {
 } catch {
   state = {events:[],labels:defaultLabels,notified:[]};loadFailed = true;
 }
+window.rijianApplyCloud = remote => {
+  try {
+    const incoming={events:remote.events.map(validateEvent),labels:remote.labels,alarms:(remote.alarms||[]).map(validateAlarm)};
+    if(!Array.isArray(incoming.labels)||!incoming.labels.every(l=>typeof l==='string'&&l.length<=30))throw new Error('同步分组格式无效');
+    const base=JSON.parse(localStorage.getItem('rijian-cloud-base-v1')||'{"events":[],"labels":[],"alarms":[]}');
+    const merged=mergeCloudSnapshots(base,cloudSnapshot(state),incoming);
+    const previousBase=localStorage.getItem('rijian-cloud-base-v1');
+    localStorage.setItem('rijian-cloud-base-v1',JSON.stringify(incoming));
+    if(!sameCloudValue(cloudSnapshot(state),merged)){
+      if(persist({...state,...merged})){render();checkReminders();}
+      else { if(previousBase===null)localStorage.removeItem('rijian-cloud-base-v1');else localStorage.setItem('rijian-cloud-base-v1',previousBase);throw new Error('本机存储不足，同步基线未变更'); }
+    }
+  }catch(error){toast('同步数据暂未应用，本机数据保留：'+error.message);}
+};
 let category='全部日子',tab='all',query='';
 let toastTimer;
 function toast(text) { $('#toast').textContent=text;$('#toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').style.display='none',5000); }
@@ -318,3 +333,5 @@ initializeTimer(message => {
   }
 }, toast);
 render();checkReminders();if(loadFailed)toast('本地数据读取失败，原存储尚在，请先检查备份。');
+
+if(window.rijianPendingCloud){window.rijianApplyCloud(window.rijianPendingCloud);window.rijianPendingCloud=null;}

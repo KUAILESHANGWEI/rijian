@@ -14,7 +14,7 @@
 | iPhone | iOS 17+；IPA 需要使用自己的 Apple 开发者身份或 AltStore 重新签名。iOS 26+ 使用 AlarmKit 系统闹钟。不是 App Store 分发包。 |
 | Android | Android 8.0+；下载 APK 安装。当前为开发测试签名，更新时覆盖安装，保留原有数据。 |
 
-当前三端构建均为 2026112203，显示版本均为 1.0。iPhone 锁屏完整音乐播放及整首结束后循环已在用户 iPhone / iOS 27.3 上验证；其他系统版本需分别验证。
+公开安装包为 2026112203；Mac/iPhone iCloud 自动同步开发构建为 2026112204，显示版本均为 1.0。iPhone 锁屏完整音乐播放及整首结束后循环已在用户 iPhone / iOS 27.3 上验证；其他系统版本需分别验证。
 
 ## 功能
 
@@ -22,7 +22,7 @@
 - 公历与农历日期、自定义重复、提前提醒。
 - 倒计时与系统提醒；上传最大 200MB 的音乐，完整播放后循环，手动停止。
 - JSON 备份在三端导入、合并，清空所有日子前验证密码。
-- iPhone 与 Mac 可选择 iCloud 云盘目录，按周期保存备份。
+- Mac/iPhone 开发构建自动同步日子、分组、闹钟与提醒音乐；另可选择 iCloud 云盘目录定期备份。
 
 JSON 备份包含日子与分组，音乐文件需单独保存。iCloud 目录写入成功不代表云端已经同步完成。自动备份执行时间受系统及 App 运行状态影响，不是严格定时同步服务。Mac 关闭窗口继续运行，选择“退出日缄”才结束；电脑休眠或退出后的准时播放未保证。Android 需要通知及准时提醒权限；后台运行也受设备电池策略影响。旧版 iOS 的普通通知使用短提示音。
 
@@ -35,7 +35,7 @@ JSON 备份包含日子与分组，音乐文件需单独保存。iCloud 目录�
 - `native/android/`：Java WebView、AlarmManager、音乐前台服务。
 - `native/macos/`：AppKit、WKWebView、原生音乐、通知与目录备份。
 
-Mac：安装 Xcode Command Line Tools，执行 `sh native/build-macos.sh`。
+Mac：安装完整 Xcode，在 `native/macos/RijianMac.xcodeproj` 中配置自己的团队、应用标识和 CloudKit 容器，执行 `sh native/build-macos.sh`。CloudKit 版需要真实 Apple 开发签名与匹配的描述文件，不能使用临时签名替代。
 
 iPhone：安装支持 AlarmKit 的 Xcode，按自己的团队修改工程签名和 `ExportOptions.plist`，执行 `sh native/build-ios.sh`。自动签名需要对应 Apple Developer 身份和设备授权。
 
@@ -52,3 +52,13 @@ Android：安装 JDK 17、Android SDK 36.1、Build Tools 36.1.0 与 Gradle 9.3.1
 “闹钟功能”支持添加多个闹钟、编辑时间与名称、一次性/每天/工作日/自选星期、单独启停和删除。闹钟随 JSON 备份迁移，旧备份也可继续导入。到时沿用所选完整提醒音乐，整首播放结束后循环至手动停止。
 
 iOS 26+ 使用 AlarmKit 系统星期重复，旧系统使用重复日历通知；Android 用原生准时提醒并在每次触发、重启或时区调整后安排下一次；Mac 在 App 运行时维护重复时间。首次使用需允许相应系统提醒权限。版本 1.0（2026112201）。
+
+## Mac 与 iPhone 自动同步（开发构建）
+
+使用独立 CloudKit 私人容器 `iCloud.com.shangweiqiu.rijian` 与 Core Data，参照拾页的记录合并、删除标记和附件分块方式。相同 iCloud 账户的 Mac/iPhone 自动交换日子、分组、闹钟和完整提醒音乐，音乐按8MB分块保存。首次启用合并两端已有记录；旧编辑器不会因为缺少远端新记录而删掉它们，删除标记防止离线旧数据复活。临时倒计时、清空密码与已响铃记录保留在设备本机。
+
+设置中的“iCloud 自动同步”独立于“iCloud 自动备份”，无需选择云盘目录。网络不可用时继续保存本机；系统安排实际上传、下载和后台唤醒，不承诺秒级到达。两端离线同时编辑同一条记录时，仍应核对最终合并结果。
+
+当前使用开发签名与 Development 环境：Mac 已实际连接并完成 CloudKit 操作；跨设备验收等待 iPhone 解锁打开。生产环境架构部署与 App Store/TestFlight 分发尚未进行。公开历史安装包暂不包含此开发能力，重新签名可能移除 iCloud 权限。不要公开上传开发描述文件中的设备注册信息、私人资料库或个人音乐。
+
+同步回归：`node --test tests/*.test.mjs`；Mac 原生数据与分块往返：`sh tests/test-cloud-native.sh`。原生测试使用独立临时资料库且不连接真实 iCloud。

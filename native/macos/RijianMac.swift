@@ -5,7 +5,8 @@ import AVFoundation
 import UniformTypeIdentifiers
 
 struct Reminder: Codable { let key: String; let title: String; var time: Double; let hour: Int?; let minute: Int?; let weekdays: [Int]? }
-@main final class RijianMac: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate {
+@main @MainActor final class RijianMac: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate {
+    var cloudSession:RijianCloudSession?
     var window: NSWindow!
     var web: WKWebView!
     var server: LocalAppServer!
@@ -45,14 +46,26 @@ struct Reminder: Codable { let key: String; let title: String; var time: Double;
         let config = WKWebViewConfiguration()
         let content = WKUserContentController(); content.add(self, name: "rijian")
         content.addUserScript(WKUserScript(source: "window.rijianMac=true", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        do {
+            cloudSession=try RijianCloudSession.shared.get()
+            cloudSession?.onMusic={ [weak self] file,_ in
+                guard let self else { return }
+                if let file { let bytes=try Data(contentsOf:file);try bytes.write(to:self.musicURL,options:.atomic) }
+                else { self.stopMusic();try? FileManager.default.removeItem(at:self.musicURL) }
+            }
+            let decision=cloudSession?.hasMusicDecision() == true
+            content.addUserScript(WKUserScript(source:"window.rijianCloudAvailable=true;window.rijianCloudMusicDecision=\(decision);",injectionTime:.atDocumentStart,forMainFrameOnly:true))
+        } catch { print("Rijian CloudKit unavailable",error) }
         config.userContentController = content
         config.mediaTypesRequiringUserActionForPlayback = []
         web = WKWebView(frame: .zero, configuration: config)
+        cloudSession?.web=web
         web.navigationDelegate = self; web.uiDelegate = self
         window = NSWindow(contentRect: NSRect(x:0,y:0,width:1180,height:800), styleMask:[.titled,.closable,.miniaturizable,.resizable], backing:.buffered, defer:false)
         window.title = "日缄"; window.minSize = NSSize(width:760,height:600)
         window.isReleasedWhenClosed = false
         window.contentView = web; window.center(); showWindow()
+        NSApp.registerForRemoteNotifications()
         UNUserNotificationCenter.current().delegate = self
         if let data = defaults.data(forKey: "requests"), let saved = try? JSONDecoder().decode([Reminder].self,from:data) { requests = saved }
         fired = Set(defaults.stringArray(forKey:"fired") ?? [])
@@ -141,7 +154,9 @@ struct Reminder: Codable { let key: String; let title: String; var time: Double;
         switch action {
         case "status":refreshPermission();status()
         case "requestReminders":UNUserNotificationCenter.current().requestAuthorization(options:[.alert,.sound,.badge]) { _,_ in DispatchQueue.main.async { self.refreshPermission() } }
+        case "cloudRefresh":cloudSession?.refresh()
         case "sync":
+            if let snapshot=data["snapshot"] as? String { cloudSession?.receive(snapshot:snapshot,base:data["cloudBase"] as? [String:Any]) }
             if let text=data["snapshot"] as? String { try? Data(text.utf8).write(to:store.appendingPathComponent("latest-backup.json"),options:.atomic);backup(force:false) }
             if let raw=data["requests"],let bytes=try? JSONSerialization.data(withJSONObject:raw),let values=try? JSONDecoder().decode([Reminder].self,from:bytes) { for value in values where self.requests.first(where: { $0.key == value.key })?.time != value.time { fired.remove(value.key) }
                 requests=values;defaults.set(bytes,forKey:"requests")
@@ -155,7 +170,15 @@ struct Reminder: Codable { let key: String; let title: String; var time: Double;
                     let bytes=try Data(contentsOf:url)
                     let audio=try AVAudioPlayer(contentsOf:url)
                     guard audio.duration>0 else { throw CocoaError(.fileReadCorruptFile) }
-                    try bytes.write(to:musicURL,options:.atomic)
+                    let isMigration=data["migration"] as? Bool == true
+                    if !isMigration || cloudSession?.hasMusicDecision() != true {
+                        try bytes.write(to:musicURL,options:.atomic)
+                        if let cloudSession {
+                            let saved=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension(url.pathExtension)
+                            try FileManager.default.copyItem(at:url,to:saved)
+                            Task { defer { try? FileManager.default.removeItem(at:saved) };do { if isMigration { try cloudSession.queueMigrationMusic(saved,name:data["name"] as? String ?? "music") } else { try await cloudSession.uploadMusic(saved,name:data["name"] as? String ?? "music") } } catch { print("Music sync failed",error) } }
+                        }
+                    }
                 }
             } catch { failure=error.localizedDescription }
             if let callback=data["callback"] as? String,let json=try? JSONSerialization.data(withJSONObject:[callback,failure as Any? ?? NSNull()]),let args=String(data:json,encoding:.utf8) {
@@ -169,7 +192,7 @@ struct Reminder: Codable { let key: String; let title: String; var time: Double;
         case "previewMusic":play(title:"提醒音乐试听",key:"preview",preview:true)
         case "playAlarm":play(title:data["title"] as? String ?? "提醒",key:data["key"] as? String ?? UUID().uuidString)
         case "stopAlarm":stopMusic()
-        case "removeMusic":stopMusic();try? FileManager.default.removeItem(at:musicURL)
+        case "removeMusic":stopMusic();try? FileManager.default.removeItem(at:musicURL);cloudSession?.removeMusic()
         case "export":
             guard let text=data["content"] as? String else { return }
             let panel=NSSavePanel();panel.nameFieldStringValue=data["filename"] as? String ?? "日缄备份.json";panel.allowedContentTypes=[.json]

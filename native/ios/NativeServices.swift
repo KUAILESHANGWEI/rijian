@@ -29,6 +29,7 @@ struct RijianAlarmMetadata: AlarmMetadata { let key: String }
 
 @MainActor
 final class NativeReminders: NSObject, UNUserNotificationCenterDelegate {
+    static let shared=NativeReminders()
     private var requests: [ReminderRequest] = []
     private var generation = 0
     private var scheduling = false
@@ -101,6 +102,23 @@ final class NativeReminders: NSObject, UNUserNotificationCenterDelegate {
         requests = Array(valid.prefix(61))
         UserDefaults.standard.set(try? JSONEncoder().encode(requests), forKey: "native-reminders")
         reschedule()
+    }
+    func updateCloudAlarms(_ alarms:[[String:Any]]) {
+        let now=Date();let calendar=Calendar.current
+        var values:[[String:Any]]=[]
+        for alarm in alarms {
+            guard alarm["enabled"] as? Bool == true,let id=alarm["id"] as? String,let hour=alarm["hour"] as? Int,let minute=alarm["minute"] as? Int,(0...23).contains(hour),(0...59).contains(minute),let days=alarm["weekdays"] as? [Int] else { continue }
+            let date:Date?
+            if days.isEmpty,let once=alarm["onceAt"] as? Double { let once=Date(timeIntervalSince1970:once/1000);date=once>now ? once:nil }
+            else {
+                date=days.filter { (0...6).contains($0) }.compactMap { day in
+                    var components=DateComponents();components.weekday=day+1;components.hour=hour;components.minute=minute
+                    return calendar.nextDate(after:now,matching:components,matchingPolicy:.nextTimePreservingSmallerComponents,repeatedTimePolicy:.first)
+                }.min()
+            }
+            if let date { values.append(["key":"alarm-"+id,"title":alarm["title"] as? String ?? "闹钟","time":date.timeIntervalSince1970*1000,"hour":hour,"minute":minute,"weekdays":days]) }
+        }
+        if let data=try? JSONSerialization.data(withJSONObject:values),let alarms=try? JSONDecoder().decode([ReminderRequest].self,from:data) { update(requests.filter { !$0.key.hasPrefix("alarm-") }+alarms) }
     }
     private func reschedule() {
         generation += 1

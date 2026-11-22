@@ -72,12 +72,13 @@ final class LocalAppServer {
 }
 
 final class AppViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler, UIDocumentPickerDelegate {
+    private var cloudSession:RijianCloudSession?
     private let musicUpload = MusicUpload()
     private var server: LocalAppServer?
     private var webView: WKWebView!
     private let status = UILabel()
     private lazy var reminders: NativeReminders = {
-        let engine = NativeReminders()
+        let engine = NativeReminders.shared
         engine.onChange = { [weak self] in self?.emitNativeStatus() }
         return engine
     }()
@@ -89,6 +90,12 @@ final class AppViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
         NotificationCenter.default.addObserver(self, selector: #selector(becameActive), name: UIApplication.didBecomeActiveNotification, object: nil)
         view.backgroundColor = UIColor(red: 247/255, green: 245/255, blue: 239/255, alpha: 1)
         let controller = WKUserContentController()
+        do {
+            cloudSession=try RijianCloudSession.shared.get()
+            let decision=cloudSession?.hasMusicDecision() == true
+            controller.addUserScript(WKUserScript(source:"window.rijianCloudAvailable=true;window.rijianCloudMusicDecision=\(decision);",injectionTime:.atDocumentStart,forMainFrameOnly:true))
+        } catch { print("Rijian CloudKit unavailable",error) }
+
         controller.add(self, name: "rijian")
         let configuration = WKWebViewConfiguration()
         configuration.userContentController = controller
@@ -96,6 +103,7 @@ final class AppViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
         configuration.allowsInlineMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = .all
         webView = WKWebView(frame: .zero, configuration: configuration)
+        cloudSession?.web=webView
         webView.uiDelegate = self
         webView.navigationDelegate = self
         webView.isOpaque = false
@@ -139,6 +147,7 @@ final class AppViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
     }
     @objc private func becameActive() {
         reminders.refresh()
+        cloudSession?.refresh()
         backups.backup(force: false)
         backups.scheduleBackground()
         emitNativeStatus()
@@ -173,7 +182,9 @@ final class AppViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
         switch action {
         case "status": reminders.refresh(); emitNativeStatus(); return
         case "requestReminders": reminders.authorize(); return
+        case "cloudRefresh":cloudSession?.refresh();return
         case "sync":
+            if let snapshot=data["snapshot"] as? String { cloudSession?.receive(snapshot:snapshot,base:data["cloudBase"] as? [String:Any]) }
             if let snapshot = data["snapshot"] as? String { backups.receiveSnapshot(snapshot) }
             if let values = data["requests"], let encoded = try? JSONSerialization.data(withJSONObject: values), let requests = try? JSONDecoder().decode([ReminderRequest].self, from: encoded) { reminders.update(requests) }
             return
@@ -191,7 +202,15 @@ final class AppViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
             do {
                 if let url=try musicUpload.receive(data) {
                     defer { try? FileManager.default.removeItem(at:url) }
-                    try reminders.installMusic(Data(contentsOf:url),name:data["name"] as? String ?? "music")
+                    let isMigration=data["migration"] as? Bool == true
+                    if !isMigration || cloudSession?.hasMusicDecision() != true {
+                        try reminders.installMusic(Data(contentsOf:url),name:data["name"] as? String ?? "music")
+                        if let cloudSession {
+                            let saved=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension(url.pathExtension)
+                            try FileManager.default.copyItem(at:url,to:saved)
+                            Task { defer { try? FileManager.default.removeItem(at:saved) };do { if isMigration { try cloudSession.queueMigrationMusic(saved,name:data["name"] as? String ?? "music") } else { try await cloudSession.uploadMusic(saved,name:data["name"] as? String ?? "music") } } catch { print("Music sync failed",error) } }
+                        }
+                    }
                 }
             } catch { failure=error.localizedDescription }
             if let callback=data["callback"] as? String,let json=try? JSONSerialization.data(withJSONObject:[callback,failure as Any? ?? NSNull()]),let args=String(data:json,encoding:.utf8) {
@@ -207,7 +226,7 @@ final class AppViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
             do { try reminders.previewMusic() }
             catch { showAlert("试听失败：\(error.localizedDescription)") }
             return
-        case "removeMusic": reminders.removeMusic(); return
+        case "removeMusic": reminders.removeMusic();cloudSession?.removeMusic(); return
         case "playAlarm": reminders.play(title: data["title"] as? String ?? "日子提醒", key: data["key"] as? String ?? "reminder"); return
         case "stopAlarm": reminders.stop(); return
         case "export": break
@@ -250,9 +269,23 @@ final class AppViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
             guard let refresh = task as? BGAppRefreshTask else { task.setTaskCompleted(success: false); return }
             Task { @MainActor in CloudBackupStore.shared.runBackground(refresh) }
         }
+        do {
+            let session=try RijianCloudSession.shared.get()
+            session.onSnapshot={ snapshot in NativeReminders.shared.updateCloudAlarms(snapshot.alarms) }
+            session.onMusic={ file,name in
+                if let file { try NativeReminders.shared.installMusic(Data(contentsOf:file),name:name ?? "music") }
+                else { NativeReminders.shared.removeMusic() }
+            }
+        } catch { print("CloudKit startup failed",error) }
+        application.registerForRemoteNotifications()
         CloudBackupStore.shared.scheduleBackground()
         return true
     }
+    func application(_ application:UIApplication,didReceiveRemoteNotification userInfo:[AnyHashable:Any],fetchCompletionHandler completionHandler:@escaping(UIBackgroundFetchResult)->Void) {
+        (try? RijianCloudSession.shared.get())?.refresh()
+        completionHandler(.newData)
+    }
+
 }
 
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {

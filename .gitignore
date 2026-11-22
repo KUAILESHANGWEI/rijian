@@ -8,3 +8,5 @@ native/ios/Web/
 exports/
 
 .openai/
+
+native/macos/Web/
