@@ -7,3 +7,6 @@ test('remote deletion wins over stale offline edit',()=>{assert.equal(mergeCloud
 test('local deletion survives remote edits',()=>{assert.equal(mergeCloudSnapshots(state([item]),state([]),state([{...item,notes:'其他设备修改'}])).events.length,0);});
 test('alarms and labels merge independently; device-local fields excluded',()=>{const merged=mergeCloudSnapshots(state([]),{...state([]),alarms:[{id:'alarm',hour:7}],labels:['工作','生日'],notified:['local']},{...state([]),labels:['工作','旅行']});assert.equal(merged.alarms[0].id,'alarm');assert.deepEqual(new Set(merged.labels),new Set(['工作','生日','旅行']));assert.equal(merged.notified,undefined);});
 test('canonical equality prevents echo commits',()=>{assert.ok(sameCloudValue({b:1,a:2},{a:2,b:1}));});
+
+test('first-time offline copy honors cloud deletion tombstones',()=>{const merged=mergeCloudSnapshots(state([]),state([item]),{...state([]),deletedRecords:['event:a']});assert.equal(merged.events.length,0);});
+test('explicitly re-add a group after acknowledging its deletion',()=>{const base={events:[],labels:[],alarms:[],deletedRecords:['label:工作']};const merged=mergeCloudSnapshots(base,{events:[],labels:['工作'],alarms:[]},base);assert.deepEqual(merged.labels,['工作']);});

@@ -31,7 +31,7 @@ try {
 }
 window.rijianApplyCloud = remote => {
   try {
-    const incoming={events:remote.events.map(validateEvent),labels:remote.labels,alarms:(remote.alarms||[]).map(validateAlarm)};
+    const incoming={events:remote.events.map(validateEvent),labels:remote.labels,alarms:(remote.alarms||[]).map(validateAlarm),deletedRecords:remote.deletedRecords||[]};
     if(!Array.isArray(incoming.labels)||!incoming.labels.every(l=>typeof l==='string'&&l.length<=30))throw new Error('同步分组格式无效');
     const base=JSON.parse(localStorage.getItem('rijian-cloud-base-v1')||'{"events":[],"labels":[],"alarms":[]}');
     const merged=mergeCloudSnapshots(base,cloudSnapshot(state),incoming);

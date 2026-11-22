@@ -9,12 +9,13 @@ struct RijianSnapshot {
     var labels: [String] = []
     var alarms: [[String:Any]] = []
     var music: [String:Any]?
+    var deletedRecords:Set<String> = []
     init() {}
     init(_ object:[String:Any]) throws {
         guard let events=object["events"] as? [[String:Any]],let labels=object["labels"] as? [String],events.count<=10000,labels.count<=10000 else { throw CocoaError(.fileReadCorruptFile) }
-        self.events=events;self.labels=labels;self.alarms=object["alarms"] as? [[String:Any]] ?? []
+        self.events=events;self.labels=labels;self.alarms=object["alarms"] as? [[String:Any]] ?? [];self.deletedRecords=Set(object["deletedRecords"] as? [String] ?? [])
     }
-    var object:[String:Any] { ["events":events,"labels":labels,"alarms":alarms] }
+    var object:[String:Any] { ["events":events,"labels":labels,"alarms":alarms,"deletedRecords":deletedRecords.sorted()] }
     func records() throws -> [String:Data] {
         var result:[String:Data]=[:]
         for (kind,items) in [("event",events),("alarm",alarms)] {
@@ -45,6 +46,7 @@ struct RijianSnapshot {
     private let directory: URL
     private var observers: [NSObjectProtocol] = []
     private var cachedRecords: [String: Data] = [:]
+    private var cachedDeleted:Set<String> = []
     private var cachedSnapshot: RijianSnapshot?
     private var publishTask: Task<Void, Never>?
     var onChange: ((RijianSnapshot) -> Void)?
@@ -122,6 +124,7 @@ struct RijianSnapshot {
 
     private func rows() throws -> [String: NSManagedObject] {
         let request = NSFetchRequest<NSManagedObject>(entityName: "RijianEntry")
+        request.shouldRefreshRefetchedObjects=true
         request.predicate = NSPredicate(format: "NOT (logicalID BEGINSWITH %@)", "blob:")
         let fetched = try container.viewContext.fetch(request)
         var result: [String: NSManagedObject] = [:]
@@ -140,11 +143,13 @@ struct RijianSnapshot {
     }
 
     func snapshot() throws -> RijianSnapshot {
-        let active = try rows().filter { !($0.value.value(forKey: "isTombstone") as? Bool ?? false) }
+        let current=try rows()
+        let active = current.filter { !($0.value.value(forKey: "isTombstone") as? Bool ?? false) }
+        let deleted=Set(current.filter { $0.value.value(forKey:"isTombstone") as? Bool == true }.keys)
         let records = active.compactMapValues { $0.value(forKey: "payload") as? Data }
-        if let cachedSnapshot, records == cachedRecords { return cachedSnapshot }
-        let result = try RijianSnapshot.decode(records)
-        cachedRecords = records
+        if let cachedSnapshot, records == cachedRecords,deleted == cachedDeleted { return cachedSnapshot }
+        var result = try RijianSnapshot.decode(records);result.deletedRecords=deleted
+        cachedRecords = records;cachedDeleted=deleted
         cachedSnapshot = result
         return result
     }
@@ -161,7 +166,7 @@ struct RijianSnapshot {
                 let row = current[id] ?? NSEntityDescription.insertNewObject(forEntityName: "RijianEntry", into: container.viewContext)
                 row.setValue(id, forKey: "logicalID")
                 if let data = after[id] {
-                    if before[id] != nil && (row.value(forKey:"isTombstone") as? Bool == true) { continue }
+                    if row.value(forKey:"isTombstone") as? Bool == true && !baseline.deletedRecords.contains(id) { continue }
                     let merged = try mergeFields(base: before[id], local: data, remote: row.value(forKey: "payload") as? Data)
                     row.setValue(merged, forKey: "payload")
                     row.setValue(false, forKey: "isTombstone")
@@ -361,6 +366,7 @@ final class BinaryAttachments: @unchecked Sendable {
     private let diagnosticURL:URL
     private let seedURL:URL
     private var seeding=false
+    private var pendingCommit:(snapshot:String,base:[String:Any]?)?
     private var ready=false
     private var appliedMusic:String?
     private var desiredMusic:String?
@@ -377,9 +383,14 @@ final class BinaryAttachments: @unchecked Sendable {
         localMusicHash=UserDefaults.standard.string(forKey:"rijian-cloud-uploaded-music-hash")
         appliedMusic=UserDefaults.standard.string(forKey:"rijian-cloud-applied-music")
         store.onChange={ [weak self] snapshot in self?.send(snapshot) }
-        store.onStatus={ [weak self] _ in self?.sendStatus();self?.attemptMusicSeed() }
+        store.onStatus={ [weak self] _ in self?.sendStatus();self?.attemptMusicSeed();self?.flushPendingCommit() }
+    }
+    private func flushPendingCommit() {
+        guard store.initialImportCompleted,let pending=pendingCommit else { return };pendingCommit=nil
+        receive(snapshot:pending.snapshot,base:pending.base)
     }
     func receive(snapshot:String,base:[String:Any]?) {
+        guard store.initialImportCompleted else { pendingCommit=(snapshot,base);sendStatus();return }
         do {
             guard let value=try JSONSerialization.jsonObject(with:Data(snapshot.utf8)) as? [String:Any] else { return }
             let next=try RijianSnapshot(value)
@@ -437,9 +448,12 @@ final class BinaryAttachments: @unchecked Sendable {
         guard !uploadingMusic else { return }
         guard let metadata=snapshot.music,let version=metadata["contentVersion"] as? String else {
             desiredMusic=nil
-            if hasMusicDecision() && appliedMusic != "deleted" {
-                do { try onMusic?(nil,nil);appliedMusic="deleted";UserDefaults.standard.set("deleted",forKey:"rijian-cloud-applied-music");evaluate("window.rijianCloudMusicChanged",NSNull()) }
-                catch { sendError("本机音乐移除失败") }
+            if hasMusicDecision() {
+                if appliedMusic != "deleted" {
+                    do { try onMusic?(nil,nil);appliedMusic="deleted";UserDefaults.standard.set("deleted",forKey:"rijian-cloud-applied-music") }
+                    catch { sendError("本机音乐移除失败") }
+                }
+                evaluate("window.rijianCloudMusicChanged",NSNull())
             }
             return
         }

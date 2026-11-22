@@ -4,6 +4,7 @@
   let nativeStatus = {};
   let revision = 0;
   let lastSnapshot = '';
+  window.rijianCloudMusicChanged = value => { if(window.rijianApplyCloudMusic)void window.rijianApplyCloudMusic(value);else window.rijianPendingCloudMusic={value}; };
   window.rijianCloudReceive = snapshot => { if(window.rijianApplyCloud)window.rijianApplyCloud(snapshot);else window.rijianPendingCloud=snapshot; };
   window.rijianCloudStatus = status => { const target=document.querySelector('#icloud-sync-status');if(target)target.textContent=status; };
   const {nextOccurrence} = await import('./dates.js');

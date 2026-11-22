@@ -5,9 +5,14 @@ export function mergeCloudSnapshots(base,local,remote){
  const result={};
  for(const kind of ['events','alarms','labels']){
   const key=value=>kind==='labels'?value:value.id;
+  const prefix=kind==='events'?'event:':kind==='alarms'?'alarm:':'label:';
+  const deleted=new Set((remote.deletedRecords||[]).filter(id=>id.startsWith(prefix)).map(id=>id.slice(prefix.length)));
+  const acknowledged=new Set(base.deletedRecords||[]);
   const old=new Map((base[kind]||[]).map(v=>[key(v),v]));const current=new Map((local[kind]||[]).map(v=>[key(v),v]));const server=new Map((remote[kind]||[]).map(v=>[key(v),v]));
   for(const id of new Set([...old.keys(),...current.keys()])){
-   const before=old.get(id),edited=current.get(id);if(same(before,edited))continue;
+   const before=old.get(id),edited=current.get(id);
+   if(deleted.has(id) && !(before===undefined && edited!==undefined && acknowledged.has(prefix+id))){server.delete(id);continue;}
+   if(same(before,edited))continue;
    if(edited===undefined){server.delete(id);continue;}
    if(before!==undefined&&!server.has(id))continue;
    if(kind!=='labels'&&before&&server.has(id)){

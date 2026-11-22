@@ -18,6 +18,20 @@ import CoreData
   var stale=merged;stale.events[0]["title"]="离线修改"
   let after=try store.commit(baseline:merged,next:stale)
   assert(!after.events.contains { $0["id"] as? String=="a" })
+  let staleFirst=try store.commit(baseline:RijianSnapshot(),next:initial)
+  assert(!staleFirst.events.contains { $0["id"] as? String=="a" })
+  var restoredSnapshot=staleFirst;restoredSnapshot.events.append(["id":"a","title":"明确恢复"])
+  let restoredResult=try store.commit(baseline:staleFirst,next:restoredSnapshot)
+  assert(restoredResult.events.contains { $0["id"] as? String=="a" })
+  let background=store.container.newBackgroundContext()
+  try background.performAndWait {
+    let query=NSFetchRequest<NSManagedObject>(entityName:"RijianEntry");query.predicate=NSPredicate(format:"logicalID == %@","event:a")
+    let row=try background.fetch(query).first!;row.setValue(true,forKey:"isTombstone");row.setValue(nil,forKey:"payload");row.setValue(Date().addingTimeInterval(1),forKey:"modifiedAt");try background.save()
+  }
+  var staleAfterImport=restoredResult
+  if let index=staleAfterImport.events.firstIndex(where: { $0["id"] as? String=="a" }) { staleAfterImport.events[index]["notes"]="远端删除后的旧编辑" }
+  let remoteDeleted=try store.commit(baseline:restoredResult,next:staleAfterImport)
+  assert(!remoteDeleted.events.contains { $0["id"] as? String=="a" })
   let attachments=BinaryAttachments(container:store.container,directory:root)
   let file=root.appendingPathComponent("music.bin");let bytes=Data(repeating:0x5a,count:10*1024*1024+31);try bytes.write(to:file)
   let metadata=try await attachments.storeFile(at:file,metadata:["size":bytes.count,"name":"music.bin"])

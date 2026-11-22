@@ -115,7 +115,8 @@ export async function prepareMusic() {
   }
 }
 export async function initializeMusic(toast) {
-  window.rijianCloudMusicChanged = value => {
+  window.rijianApplyCloudMusic = async value => {
+    await musicReady;
     window.rijianCloudMusicDecision=true;
     cloudMusic=value;
     if(!value){music=null;buffer=null;enabled=false;void saveMusic(null).catch(()=>{});}
@@ -184,4 +185,5 @@ export async function initializeMusic(toast) {
     finally { loading = false; updateStatus(); }
   })();
   await musicReady;
+  if(window.rijianPendingCloudMusic){const {value}=window.rijianPendingCloudMusic;delete window.rijianPendingCloudMusic;await window.rijianApplyCloudMusic(value);}
 }
