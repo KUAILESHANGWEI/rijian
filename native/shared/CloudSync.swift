@@ -373,7 +373,8 @@ final class BinaryAttachments: @unchecked Sendable {
     private var musicTask:Task<Void,Never>?
     private var localMusicHash:String?
     private var refreshing=false
-    private var uploadingMusic=false
+    private var uploadsInFlight=0
+    private var musicRevision=0
     var status:String { store.status }
     init(directory:URL,cloudEnabled:Bool=true) throws {
         diagnosticURL=directory.appendingPathComponent("sync-status.json")
@@ -420,13 +421,15 @@ final class BinaryAttachments: @unchecked Sendable {
     }
     func uploadMusic(_ url:URL,name:String) async throws {
         if url != seedURL { try? FileManager.default.removeItem(at:seedURL) }
-        uploadingMusic=true;defer { uploadingMusic=false;refresh() }
+        musicRevision += 1;let revision=musicRevision
+        uploadsInFlight += 1;defer { uploadsInFlight -= 1;if uploadsInFlight==0 { refresh() } }
         let handle=try FileHandle(forReadingFrom:url);defer { try? handle.close() }
         var hash=SHA256();var size=0
         while let part=try handle.read(upToCount:1024*1024),!part.isEmpty { hash.update(data:part);size+=part.count }
         let digest=hash.finalize().map { String(format:"%02x",$0) }.joined()
         if let metadata=try store.snapshot().music,metadata["sha256"] as? String==digest { return }
         let metadata=try await attachments.storeFile(at:url,metadata:["name":name,"size":size])
+        guard revision==musicRevision else { try? await attachments.discard(metadata);return }
         appliedMusic=metadata["contentVersion"] as? String
         UserDefaults.standard.set(appliedMusic,forKey:"rijian-cloud-applied-music")
         localMusicHash=digest;UserDefaults.standard.set(digest,forKey:"rijian-cloud-uploaded-music-hash")
@@ -435,6 +438,7 @@ final class BinaryAttachments: @unchecked Sendable {
         if let previous,previous["contentVersion"] as? String != metadata["contentVersion"] as? String { try? await attachments.discard(previous) }
     }
     func removeMusic() {
+        musicRevision += 1
         try? FileManager.default.removeItem(at:seedURL)
         do {
             let previous=try store.snapshot().music
@@ -445,7 +449,7 @@ final class BinaryAttachments: @unchecked Sendable {
     private func send(_ snapshot:RijianSnapshot) {
         onSnapshot?(snapshot)
         if ready { evaluate("window.rijianCloudReceive",snapshot.object) }
-        guard !uploadingMusic else { return }
+        guard uploadsInFlight==0 else { return }
         guard let metadata=snapshot.music,let version=metadata["contentVersion"] as? String else {
             desiredMusic=nil
             if hasMusicDecision() {
@@ -468,7 +472,7 @@ final class BinaryAttachments: @unchecked Sendable {
                 guard self.desiredMusic==version else { return }
                 try self.onMusic?(file,metadata["name"] as? String)
                 self.appliedMusic=version;UserDefaults.standard.set(version,forKey:"rijian-cloud-applied-music")
-                self.evaluate("window.rijianCloudMusicChanged",["name":metadata["name"] as? String ?? "提醒音乐"])
+                self.evaluate("window.rijianCloudMusicChanged",["name":metadata["name"] as? String ?? "提醒音乐"]);self.sendStatus()
             } catch { self.sendError("提醒音乐正在下载，日子与闹钟仍可同步");DispatchQueue.main.asyncAfter(deadline:.now()+3){ [weak self] in self?.refresh() } }
         }
     }
